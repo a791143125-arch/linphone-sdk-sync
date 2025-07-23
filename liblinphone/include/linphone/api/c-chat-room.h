@@ -126,6 +126,15 @@ LINPHONE_PUBLIC LinphoneChatMessage *linphone_chat_room_create_voice_recording_m
                                                                                        LinphoneRecorder *recorder);
 
 /**
+ * Creates a message attached to the given chat room with a call log json content filled with the given call log.
+ * @param chat_room the #LinphoneChatRoom object. @notnil
+ * @param call_log the call log. @notnil
+ * @return a new #LinphoneChatMessage @notnil
+ */
+LINPHONE_PUBLIC LinphoneChatMessage *linphone_chat_room_create_message_from_call_log(LinphoneChatRoom *chat_room,
+                                                                                     LinphoneCallLog *call_log);
+
+/**
  * Get the peer address associated to this chat room.
  * @warning This method returns an invalid address if the ChatRoom is in the Instantiated state
  * @param chat_room #LinphoneChatRoom object. @notnil

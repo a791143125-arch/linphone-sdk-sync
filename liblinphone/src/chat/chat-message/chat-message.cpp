@@ -743,6 +743,15 @@ void ChatMessagePrivate::setFileTransferFilepath(const string &path) {
 	fileTransferFilePath = path;
 }
 
+bool ChatMessagePrivate::hasCallLogJsonContent() const {
+	for (const auto &c : getContents()) {
+		if (c->getContentType() == ContentType::CallLogJson) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void ChatMessagePrivate::setEphemeralExpireTime(time_t expireTime) {
 	ephemeralExpireTime = expireTime;
 }

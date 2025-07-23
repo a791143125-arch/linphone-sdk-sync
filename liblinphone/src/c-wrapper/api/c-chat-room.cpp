@@ -225,6 +225,16 @@ LinphoneChatMessage *linphone_chat_room_create_voice_recording_message(LinphoneC
 	return chat_message;
 }
 
+LinphoneChatMessage *linphone_chat_room_create_message_from_call_log(LinphoneChatRoom *chat_room,
+                                                                     LinphoneCallLog *call_log) {
+	ChatRoomLogContextualizer logContextualizer(chat_room);
+	LinphoneChatMessage *chat_message = linphone_chat_room_create_empty_message(chat_room);
+	linphone_chat_message_set_content_type(chat_message, ContentType::CallLogJson.getValue().c_str());
+	linphone_chat_message_add_call_log_content(chat_message, call_log);
+
+	return chat_message;
+}
+
 void linphone_chat_room_send_chat_message_2(BCTBX_UNUSED(LinphoneChatRoom *chat_room), LinphoneChatMessage *msg) {
 	linphone_chat_message_ref(msg);
 	L_GET_CPP_PTR_FROM_C_OBJECT(msg)->send();

@@ -187,6 +187,8 @@ public:
 	videoFilterCallbackNotTurningPreviewOff(void *userdata, BCTBX_UNUSED(MSFilter *f), unsigned int id, void *arg);
 #endif
 
+	void processJsonCallLog(const std::shared_ptr<ChatMessage> &chatMessage);
+
 	// ---------------------------------------------------------------------------
 	// Conference Call Event.
 	// ---------------------------------------------------------------------------

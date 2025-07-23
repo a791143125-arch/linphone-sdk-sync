@@ -19,6 +19,7 @@
  */
 
 #include <algorithm>
+#include <json/json.h>
 
 #include <bctoolbox/defs.h>
 
@@ -32,6 +33,7 @@
 #include "conference/conference.h"
 #include "content/content-manager.h"
 #include "core/core-p.h"
+#include "linphone/api/c-call-log.h"
 #include "linphone/api/c-chat-message.h"
 #include "linphone/api/c-event-log.h"
 #include "linphone/utils/algorithm.h"
@@ -699,6 +701,11 @@ void ChatRoom::onChatMessageReceived(const shared_ptr<ChatMessage> &chatMessage)
 	} else if (chatMessage->getPrivate()->getContentType() == ContentType::Imdn) {
 		onImdnReceived(chatMessage);
 		if (linphone_config_get_int(linphone_core_get_config(cCore), "sip", "deliver_imdn", 0) != 1) return;
+	}
+
+	if (chatMessage->getPrivate()->hasCallLogJsonContent()) {
+		getCore()->processJsonCallLog(chatMessage);
+		if (chatMessage->getContents().size() == 0) return;
 	}
 
 	const std::shared_ptr<Address> &fromAddress = chatMessage->getFromAddress();

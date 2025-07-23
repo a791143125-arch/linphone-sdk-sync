@@ -40,6 +40,7 @@ public:
 
 // -----------------------------------------------------------------------------
 
+const ContentType ContentType::CallLogJson("application/vnd.linphone.call-log+json");
 const ContentType ContentType::ConferenceInfo("application/conference-info+xml");
 const ContentType ContentType::Cpim("message/cpim");
 const ContentType ContentType::Encrypted("multipart/encrypted");

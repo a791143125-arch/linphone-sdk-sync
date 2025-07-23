@@ -336,6 +336,10 @@ void linphone_content_set_file_duration(LinphoneContent *content, int duration) 
 	else if (c->isFileTransfer()) dynamic_cast<FileTransferContent *>(c)->setFileDuration(duration);
 }
 
+bool_t linphone_content_is_call_log_json(const LinphoneContent *content) {
+	return Content::toCpp(content)->getContentType() == ContentType::CallLogJson;
+}
+
 bool_t linphone_content_is_text(const LinphoneContent *content) {
 	return Content::toCpp(content)->getContentType() == ContentType::PlainText;
 }

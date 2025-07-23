@@ -889,7 +889,9 @@ long long MainDbPrivate::insertOrUpdateConferenceInfoParticipant(long long confe
 }
 
 long long MainDbPrivate::insertOrUpdateConferenceCall(const std::shared_ptr<CallLog> &callLog,
-                                                      const std::shared_ptr<ConferenceInfo> &conferenceInfo) {
+                                                      const std::shared_ptr<ConferenceInfo> &conferenceInfo,
+                                                      bool_t *updated
+                                                      ) {
 #ifdef HAVE_DB_STORAGE
 	L_Q();
 	long long conferenceInfoId = -1;
@@ -915,9 +917,9 @@ long long MainDbPrivate::insertOrUpdateConferenceCall(const std::shared_ptr<Call
 	const string &refKey = callLog->getRefKey();
 	soci::indicator confInfoInd = conferenceInfoId > -1 ? soci::i_ok : soci::i_null;
 
-	long long conferenceCallId = selectConferenceCallId(callLog->getCallId());
+	long long conferenceCallId = selectConferenceCallId(callId);
 	if (conferenceCallId < 0) {
-		lInfo() << "Insert new conference call in database: " << callLog->getCallId();
+		lInfo() << "Insert new conference call in database: " << callId;
 
 		std::shared_ptr<Address> from = callLog->getFromAddress() ? callLog->getFromAddress() : nullptr;
 		const long long fromSipAddressId = insertSipAddress(from);
@@ -941,8 +943,10 @@ long long MainDbPrivate::insertOrUpdateConferenceCall(const std::shared_ptr<Call
 		    soci::use(conferenceInfoId, confInfoInd);
 
 		conferenceCallId = dbSession.getLastInsertId();
+		if (updated)*updated = FALSE;
+
 	} else {
-		lInfo() << "Update conference call in database: " << callLog->getCallId();
+		lInfo() << "Update conference call in database: " << callId;
 
 		*dbSession.getBackendSession()
 		    << "UPDATE conference_call SET"
@@ -953,6 +957,7 @@ long long MainDbPrivate::insertOrUpdateConferenceCall(const std::shared_ptr<Call
 		    soci::use(duration), soci::use(connectedTime.first, connectedTime.second), soci::use(status),
 		    soci::use(videoEnabled), soci::use(quality), soci::use(callId), soci::use(refKey),
 		    soci::use(conferenceInfoId, confInfoInd), soci::use(conferenceCallId);
+		if (updated) *updated = TRUE;
 	}
 
 	cache(callLog, conferenceCallId);
@@ -1681,7 +1686,7 @@ long long MainDbPrivate::insertConferenceEvent(const shared_ptr<EventLog> &event
 #endif
 }
 
-long long MainDbPrivate::insertConferenceCallEvent(const shared_ptr<EventLog> &eventLog) {
+long long MainDbPrivate::insertConferenceCallEvent(const shared_ptr<EventLog> &eventLog, bool_t *updated) {
 #ifdef HAVE_DB_STORAGE
 	shared_ptr<ConferenceCallEvent> conferenceCallEvent = static_pointer_cast<ConferenceCallEvent>(eventLog);
 
@@ -1718,7 +1723,7 @@ long long MainDbPrivate::insertConferenceCallEvent(const shared_ptr<EventLog> &e
 			return -1;
 	}
 
-	conferenceCallId = insertOrUpdateConferenceCall(callLog, conferenceInfo);
+	conferenceCallId = insertOrUpdateConferenceCall(callLog, conferenceInfo, updated);
 
 	eventId = insertEvent(eventLog);
 
@@ -3824,7 +3829,7 @@ bool MainDbPrivate::importLegacyCallLogs(DbSession &inDbSession) {
 			ind = log.get_indicator(LegacyCallLogColRefKey);
 			if (ind == soci::i_ok) callLog->setRefKey(log.get<string>(LegacyCallLogColRefKey));
 
-			insertOrUpdateConferenceCall(callLog, nullptr);
+			insertOrUpdateConferenceCall(callLog, nullptr, nullptr);
 		}
 
 		tr.commit();
@@ -4740,7 +4745,7 @@ bool MainDb::addEvent(const shared_ptr<EventLog> &eventLog) {
 			case EventLog::Type::ConferenceCallStarted:
 			case EventLog::Type::ConferenceCallConnected:
 			case EventLog::Type::ConferenceCallEnded:
-				eventId = d->insertConferenceCallEvent(eventLog);
+				eventId = d->insertConferenceCallEvent(eventLog, nullptr);
 				break;
 
 			case EventLog::Type::ConferenceChatMessage:
@@ -8076,12 +8081,12 @@ void MainDb::deleteConferenceInfo(const std::shared_ptr<ConferenceInfo> &confere
 
 // -----------------------------------------------------------------------------
 
-long long MainDb::insertCallLog(const std::shared_ptr<CallLog> &callLog) {
+long long MainDb::insertOrUpdateCallLog(const std::shared_ptr<CallLog> &callLog, bool_t *updated) {
 #ifdef HAVE_DB_STORAGE
 	return L_DB_TRANSACTION {
 		L_D();
 
-		long long id = d->insertOrUpdateConferenceCall(callLog, nullptr);
+		long long id = d->insertOrUpdateConferenceCall(callLog, nullptr , updated);
 		tr.commit();
 
 		return id;

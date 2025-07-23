@@ -286,7 +286,7 @@ public:
 	// Call log.
 	// ---------------------------------------------------------------------------
 
-	long long insertCallLog(const std::shared_ptr<CallLog> &callLog);
+	long long insertOrUpdateCallLog(const std::shared_ptr<CallLog> &callLog, bool_t *updated = nullptr);
 	void updateCallLog(const std::shared_ptr<CallLog> &callLog);
 	void deleteCallLog(const std::shared_ptr<CallLog> &callLog);
 

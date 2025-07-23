@@ -378,6 +378,52 @@ LinphoneStatus Core::terminateAllCalls() {
 	return 0;
 }
 
+void Core::processJsonCallLog(const shared_ptr<ChatMessage> &chatMessage) {
+	Json::Reader reader;
+	auto contents = chatMessage->getContents();
+	for (auto content : contents) {
+		if (content->getContentType() != ContentType::CallLogJson) continue;
+		auto text = content->getBodyAsString();
+		auto callLog = CallLog::create(getSharedFromThis(), LinphoneCallDir::LinphoneCallIncoming, nullptr, nullptr);
+		if (!callLog->fromJson(text)) {
+			auto callId = callLog->getCallId();
+			if (!callId.empty()) {
+				bool storeIncomingLog = true;
+				LinphoneCallLog *callLogC =
+				    linphone_core_find_call_log_from_call_id(getCCore(), callLog->getCallId().c_str());
+				if (callLogC) { // Exist?
+					auto dbCallLog = CallLog::toCpp(callLogC);
+					if (dbCallLog->getFromAddress()->weakEqual(callLog->getFromAddress()) &&
+					    dbCallLog->getToAddress()->weakEqual(callLog->getToAddress())) {
+						if ( dbCallLog->getStatus() == callLog->getStatus()) {// Only update if status is the same.
+							// If status is different for the same callid(like AcceptedFromElsewhere), then this log is not for this device.
+							dbCallLog->fromJson(text); // Update the DB Call Log with JSON data.
+							linphone_core_store_call_log(getCCore(), dbCallLog->toC());
+							linphone_core_notify_call_log_updated(getCCore(), dbCallLog->toC());
+						}
+						storeIncomingLog = false;
+					}
+					linphone_call_log_unref(callLogC);
+				}
+				if (storeIncomingLog) {
+					linphone_core_store_call_log(getCCore(), callLog->toC());
+					linphone_core_notify_call_log_updated(getCCore(), callLog->toC());
+				}
+			}
+		}
+		chatMessage->removeContent(content);
+	}
+	if (chatMessage->getContents().size() == 0) {
+		chatMessage->getChatRoom()->deleteMessageFromHistory(chatMessage);
+		chatMessage->deleteChatMessageFromCache();
+	} else {
+		// Multi contents case: Update processed contents.
+		// chatMessage->storeInDb(); //  TODO? storeInDb is private
+		lWarning() << __func__
+		           << ": Multi-content types detected in message along call logs. Chat Message will not be cleaned";
+	}
+}
+
 // =============================================================================
 
 #ifndef _MSC_VER

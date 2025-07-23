@@ -103,7 +103,7 @@ private:
 	                                                   const ParticipantInfo::participant_params_t params) const;
 
 	long long insertOrUpdateConferenceCall(const std::shared_ptr<CallLog> &callLog,
-	                                       const std::shared_ptr<ConferenceInfo> &conferenceInfo = nullptr);
+	                                       const std::shared_ptr<ConferenceInfo> &conferenceInfo = nullptr, bool_t *updated = nullptr);
 	long long updateConferenceCall(const std::shared_ptr<CallLog> &callLog);
 	long long insertOrUpdateFriend(const std::shared_ptr<Friend> &f);
 	long long insertOrUpdateFriendList(const std::shared_ptr<FriendList> &list);
@@ -184,7 +184,7 @@ private:
 
 	long long insertEvent(const std::shared_ptr<EventLog> &eventLog);
 	long long insertConferenceEvent(const std::shared_ptr<EventLog> &eventLog, long long *chatRoomId = nullptr);
-	long long insertConferenceCallEvent(const std::shared_ptr<EventLog> &eventLog);
+	long long insertConferenceCallEvent(const std::shared_ptr<EventLog> &eventLog, bool_t *updated);
 	long long insertConferenceChatMessageEvent(const std::shared_ptr<EventLog> &eventLog);
 	long long insertConferenceChatMessageReactionEvent(const std::shared_ptr<EventLog> &eventLog);
 	void updateConferenceChatMessageEvent(const std::shared_ptr<EventLog> &eventLog);

@@ -110,6 +110,7 @@ const MSAudioDiffParams audio_cmp_params = {10, 200};
 /* Default test server infrastructure. You may change to sandbox infrastructure to test changes to the infrastructure
  * first. */
 
+
 const char *flexisip_tester_dns_server = "fs-test-9.linphone.org";
 // const char *flexisip_tester_dns_server = "fs-test-sandbox-3.linphone.org";
 
@@ -2720,6 +2721,11 @@ static void call_created(LinphoneCore *lc, BCTBX_UNUSED(LinphoneCall *call)) {
 	counters->number_of_LinphoneCallCreated++;
 }
 
+static void call_log_updated(LinphoneCore *lc, BCTBX_UNUSED(LinphoneCallLog *call_log)) {
+	stats *counters = get_stats(lc);
+	++counters->number_of_LinphoneCoreCallLogUpdated;
+}
+
 #if __clang__ || ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4)
 #pragma GCC diagnostic push
 #endif
@@ -2768,6 +2774,7 @@ void linphone_core_manager_init2(LinphoneCoreManager *mgr, BCTBX_UNUSED(const ch
 	linphone_core_cbs_set_last_call_ended(mgr->cbs, last_call_ended);
 	linphone_core_cbs_set_audio_device_changed(mgr->cbs, audio_device_changed);
 	linphone_core_cbs_set_audio_devices_list_updated(mgr->cbs, audio_devices_list_updated);
+	linphone_core_cbs_set_call_log_updated(mgr->cbs, call_log_updated);
 	linphone_core_cbs_set_imee_user_registration(mgr->cbs, liblinphone_tester_x3dh_user_created);
 	linphone_core_cbs_set_conference_state_changed(mgr->cbs, core_conference_state_changed);
 	linphone_core_cbs_set_default_account_changed(mgr->cbs, default_account_changed);

@@ -300,6 +300,13 @@ LINPHONE_PUBLIC int linphone_content_get_file_duration(const LinphoneContent *co
  */
 LINPHONE_PUBLIC void linphone_content_set_file_duration(LinphoneContent *content, int duration);
 
+ /**
+  * Tells whether or not this content contains a call log in json.
+  * @param content #LinphoneContent object. @notnil
+  * @return TRUE if this content contains call log json, FALSE otherwise.
+  */
+ LINPHONE_PUBLIC bool_t linphone_content_is_call_log_json(const LinphoneContent *content);
+
 /**
  * Tells whether or not this content contains text.
  * @param content #LinphoneContent object. @notnil

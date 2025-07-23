@@ -257,6 +257,8 @@ public:
 	const std::shared_ptr<Content> getFileTransferContent() const;
 	const std::shared_ptr<Content> getFileTransferInformation() const;
 
+	bool hasCallLogJsonContent() const;
+
 	void addContent(std::shared_ptr<Content> content);
 	void removeContent(std::shared_ptr<Content> content);
 	void replaceContent(std::shared_ptr<Content> contentToRemove, std::shared_ptr<Content> contentToAdd);

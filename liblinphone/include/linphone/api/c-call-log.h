@@ -32,6 +32,13 @@ extern "C" {
  * @{
  */
 
+ /**
+  * Clone the given call log
+  * @param call_log The given call log. @notnil
+  * @return A new call log with exactly same informations that param. @notnil
+  */
+ LINPHONE_PUBLIC LinphoneCallLog *linphone_call_log_clone(const LinphoneCallLog *call_log);
+
 /**
  * Acquire a reference to the call log.
  * @param call_log #LinphoneCallLog object @notnil
@@ -163,6 +170,21 @@ LINPHONE_PUBLIC bool_t linphone_call_log_video_enabled(const LinphoneCallLog *ca
  * @return A human readable string describing the call. @notnil @tobefreed
  **/
 LINPHONE_PUBLIC char *linphone_call_log_to_str(const LinphoneCallLog *call_log);
+
+/**
+ * Gets a Json representation of the call.
+ * @param call_log #LinphoneCallLog object @notnil
+ * @return A Json format string describing the call. @notnil @tobefreed
+ **/
+LINPHONE_PUBLIC char *linphone_call_log_to_json(const LinphoneCallLog *call_log);
+
+/**
+ * Update the call from a text in Json.
+ * @param call_log #LinphoneCallLog object to update @notnil
+ * @param json_text the Json to parse  @notnil
+ * @return -1 if json_text couldn't be parsed else 0.
+ **/
+LINPHONE_PUBLIC int linphone_call_log_from_json(LinphoneCallLog *call_log, const char *json_text);
 
 /**
  * Tells whether that call was part of a conference
