@@ -2693,9 +2693,10 @@ static void group_chat_room_admin_leaves_after_nominating_new_admin_base(bool_t 
 				                             initialMarieStats.number_of_LinphoneChatRoomStateTerminationPending + 1,
 				                             liblinphone_tester_sip_timeout));
 
+				// We must wait for the timer F to expire (https://www.rfc-editor.org/rfc/rfc3261.html#section-17.1.2.2)
+				// after 64*T1 (i.e. 32s)
 				BC_ASSERT_TRUE(wait_for_list(coresList, &marie.getStats().number_of_LinphoneChatRoomStateCreated,
-				                             initialMarieStats.number_of_LinphoneChatRoomStateCreated + 1,
-				                             liblinphone_tester_sip_timeout));
+				                             initialMarieStats.number_of_LinphoneChatRoomStateCreated + 1, 33000));
 			}
 
 			BC_ASSERT_FALSE(wait_for_list(coresList, &leaving_mgr->stat.number_of_LinphoneChatRoomStateTerminated,
