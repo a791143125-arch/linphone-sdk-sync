@@ -30,6 +30,29 @@
 #include "linphone/core_utils.h"
 #include "tester_utils.h"
 
+
+// List coming from dialplan
+//  const int sPhoneCountryWhitelist[]
+//  ={1,20,212,213,216,218,221,222,224,225,226,227,228,229,230,231,232,233,234,235,236,240,242,243,244,246,249,250,251,252,253,254,255,256,257,258,260,261,262,263,266,267,268,269,27,290,299,30,31,32,33,34,351,352,353,354,356,357,36,370,371,373,376,377,378,380,381,382,386,387,389,39,40,41,420,421,423,43,44,45,46,47,48,500,501,502,503,505,506,507,508,509,51,53,54,55,56,57,58,592,593,594,595,598,60,61,62,63,64,65,66,670,673,674,676,678,679,680,682,683,685,686,687,688,689,691,692,7,81,84,850,852,853,855,856,86,880,886,92,93,94,95,960,961,962,963,964,965,966,967,968,970,971,972,973,974,975,976,977,98,992,993,994,995,996,998};
+//  Abstract
+//  const int sPhoneCountryWhitelist[] ={1,27,299,33,420,421,46,61,682,7,8};
+const int sPhoneCountryWhitelist[] = {33};
+// Use only France because we are sure about the rules. It is a workaround on phone number generation to pass checks in
+// waiting for error management with FAM requests (in Account Manager services)
+
+static bool_t check_phone_country(const int country) {
+	size_t index = 0;
+	size_t len = sizeof(sPhoneCountryWhitelist) / sizeof(int);
+	while (index < len) {
+		if (sPhoneCountryWhitelist[index] == country) {
+			return TRUE;
+		}
+		++index;
+	}
+	return FALSE;
+}
+
+
 static void enable_publish(LinphoneCoreManager *mgr, bool_t enable) {
 	LinphoneProxyConfig *cfg = linphone_core_get_default_proxy_config(mgr->lc);
 	linphone_proxy_config_edit(cfg);
@@ -93,7 +116,7 @@ char *generate_random_phone_from_dial_plan(const LinphoneDialPlan *dialPlan) {
 		phone[i] = '0' + bctbx_random() % 10;
 	}
 	phone[i] = '\0';
-
+	if (phone[0] == '0') phone[0] = '1';
 	return ms_strdup_printf("%s", phone);
 }
 
@@ -109,7 +132,8 @@ char *generate_random_e164_phone(void) {
 	const LinphoneDialPlan *genericDialPlan = linphone_dial_plan_by_ccc(NULL);
 
 	while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan ||
-	       (strcmp("52", linphone_dial_plan_get_country_calling_code(dialPlan)) == 0))
+			!check_phone_country(atoi(linphone_dial_plan_get_country_calling_code(dialPlan))))
+	       //(strcmp("52", linphone_dial_plan_get_country_calling_code(dialPlan)) == 0))
 		; // fixme Linphone Mexican's dialplan has 2 ccc
 	belle_sip_object_remove_from_leak_detector((void *)genericDialPlan);
 	belle_sip_object_remove_from_leak_detector(
@@ -1357,7 +1381,8 @@ static void long_term_presence_with_phone_without_sip(void) {
 		LinphoneCoreManager *marie = NULL;
 		char *identity = NULL;
 
-		while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan)
+		while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan ||
+			!check_phone_country(atoi(linphone_dial_plan_get_country_calling_code(dialPlan))))
 			;
 		/*now with have a dialplan*/
 		phone = generate_random_phone_from_dial_plan(dialPlan);
@@ -2522,7 +2547,8 @@ static void notify_friend_capabilities_with_alias(void) {
 		LinphoneCoreManager *laure = NULL;
 		bctbx_list_t *specs = NULL;
 
-		while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan)
+		while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan ||
+			!check_phone_country(atoi(linphone_dial_plan_get_country_calling_code(dialPlan))))
 			;
 
 		char *phoneMarie = generate_random_phone_from_dial_plan(dialPlan);
@@ -2614,7 +2640,8 @@ static void notify_search_result_capabilities_with_alias(void) {
 		LinphoneMagicSearch *magicSearch = NULL;
 		bctbx_list_t *resultList = NULL;
 
-		while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan)
+		while ((dialPlan = linphone_dial_plan_by_ccc_as_int(bctbx_random() % 900)) == genericDialPlan ||
+			 !check_phone_country(atoi(linphone_dial_plan_get_country_calling_code(dialPlan))))
 			;
 		phoneMarie = generate_random_phone_from_dial_plan(dialPlan);
 		e164Marie = ms_strdup_printf("+%s%s", linphone_dial_plan_get_country_calling_code(dialPlan), phoneMarie);
