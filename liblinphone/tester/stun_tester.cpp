@@ -20,6 +20,7 @@
 
 #include "mediastreamer2/stun.h"
 
+#include "bctoolbox/utils.hh"
 #include "ortp/port.h"
 
 #include "liblinphone_tester.h"
@@ -29,7 +30,13 @@
 #include "shared_tester_functions.h"
 #include "tester_utils.h"
 
+#include <string.h>
+
 static const char *stun_address = "stun.example.org";
+
+extern "C" void account_manager_services_get_turn_credentials(LinphoneCoreManager *manager,
+                                                              LinphoneNatPolicy **nat_policy,
+                                                              LinphoneAuthInfo **turn_config);
 
 typedef struct _CallConfig {
 	bool_t video_enabled;
@@ -42,6 +49,7 @@ typedef struct _CallConfig {
 	bool_t turn_tls;
 	bool_t wrong_password;
 	LinphoneMediaEncryption mode;
+	LinphoneDictionary *turn_credentials;
 } CallConfig;
 
 static void call_config_init(CallConfig *config) {
@@ -85,6 +93,7 @@ static void linphone_stun_test_grab_ip(void) {
 	linphone_core_enable_ipv6(lc_stun->lc, FALSE);
 	linphone_core_enable_realtime_text(lc_stun->lc, TRUE);
 	linphone_core_set_stun_server(lc_stun->lc, stun_address);
+
 	BC_ASSERT_STRING_EQUAL(stun_address, linphone_core_get_stun_server(lc_stun->lc));
 	wait_for(lc_stun->lc, lc_stun->lc, &tmp, 1);
 
@@ -113,40 +122,32 @@ end:
 	linphone_core_manager_destroy(lc_stun);
 }
 
-static void
-configure_nat_policy(LinphoneCore *lc, bool_t turn_enabled, bool_t turn_tcp, bool_t turn_tls, bool_t wrong_password) {
-	const char *username = "liblinphone-tester";
-	const char *password = wrong_password ? "wrong_password " : "retset-enohpnilbil";
-	LinphoneAuthInfo *auth_info =
-	    linphone_core_create_auth_info(lc, username, NULL, password, NULL, "sip.linphone.org", NULL);
-	LinphoneNatPolicy *nat_policy = linphone_core_create_nat_policy(lc);
-	linphone_nat_policy_enable_ice(nat_policy, TRUE);
-	if (turn_enabled) {
-		linphone_nat_policy_enable_turn(nat_policy, TRUE);
-		linphone_nat_policy_set_stun_server(nat_policy,
-		                                    "sip1.linphone.org:3479"); // This is our unofficial turn server.
-		/* When the turn server is incorporated in flexisip-tester, use turn.example.org . */
-		linphone_nat_policy_set_stun_server_username(nat_policy, username);
-		if (turn_tcp) {
-			linphone_nat_policy_enable_tcp_turn_transport(nat_policy, TRUE);
-		} else if (turn_tls) {
-			linphone_nat_policy_set_stun_server(nat_policy, "sip1.linphone.org:5349");
-			linphone_nat_policy_enable_tls_turn_transport(nat_policy, TRUE);
-		}
-	} else {
-		linphone_nat_policy_enable_stun(nat_policy, TRUE);
-		/* We intentionnaly do not use stun.example.org. When both liblinphone_tester and flexisip are in the same local
-		 * network it will break the test "Relayed ICE+TURN to ICE+STUN call", because:
-		 * - the TURN client will use the public sip1.linphone.org TURN server
-		 * - the STUN client will use the local stun server and hence will discover a local address.
-		 * When the TURN client will create PERMISSIONS, they will be created for the local address which are not
-		 * routable from the TURN server standpoint.
-		 * TODO: the good solution would be to setup the coturn server in the flexisip-tester environment.
-		 */
-		linphone_nat_policy_set_stun_server(nat_policy, "sip1.linphone.org:3479");
+static void configure_nat_policy(
+    LinphoneCoreManager *manager, bool_t turn_enabled, bool_t turn_tcp, bool_t turn_tls, bool_t wrong_password) {
+	// const char *username;// = "liblinphone-tester";
+	// const char *password;// = wrong_password ? "wrong_password " : "retset-enohpnilbil";
+
+	LinphoneNatPolicy *nat_policy = NULL;
+	LinphoneAuthInfo *auth_info = NULL;
+	account_manager_services_get_turn_credentials(manager, &nat_policy, &auth_info);
+	if (auth_info && wrong_password) {
+		linphone_auth_info_set_password(auth_info, "wrong_password");
 	}
-	linphone_core_set_nat_policy(lc, nat_policy);
-	linphone_core_add_auth_info(lc, auth_info);
+	if (nat_policy) {
+		linphone_nat_policy_enable_ice(nat_policy, TRUE);
+		if (turn_enabled) {
+			linphone_nat_policy_enable_turn(nat_policy, TRUE);
+			if (turn_tcp) {
+				linphone_nat_policy_enable_tcp_turn_transport(nat_policy, TRUE);
+			} else if (turn_tls) {
+				linphone_nat_policy_enable_tls_turn_transport(nat_policy, TRUE);
+			}
+		} else {
+			linphone_nat_policy_enable_stun(nat_policy, TRUE);
+		}
+	}
+	linphone_core_set_nat_policy(manager->lc, nat_policy);
+	linphone_core_add_auth_info(manager->lc, auth_info);
 	linphone_nat_policy_unref(nat_policy);
 	linphone_auth_info_unref(auth_info);
 }
@@ -199,10 +200,6 @@ static void ice_turn_call_base(const CallConfig *config) {
 	linphone_config_set_int(linphone_core_get_config(pauline->lc), "sip", "update_call_when_ice_completed_with_dtls",
 	                        1);
 
-	configure_nat_policy(marie->lc, config->caller_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
-	configure_nat_policy(pauline->lc, config->callee_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
 	if (config->forced_relay == TRUE) {
 		linphone_core_enable_forced_ice_relay(marie->lc, TRUE);
 		linphone_core_enable_forced_ice_relay(pauline->lc, TRUE);
@@ -234,6 +231,11 @@ static void ice_turn_call_base(const CallConfig *config) {
 
 	linphone_core_manager_start(marie, TRUE);
 	linphone_core_manager_start(pauline, TRUE);
+
+	configure_nat_policy(marie, config->caller_turn_enabled, config->turn_tcp, config->turn_tls,
+	                     config->wrong_password);
+	configure_nat_policy(pauline, config->callee_turn_enabled, config->turn_tcp, config->turn_tls,
+	                     config->wrong_password);
 
 	if (config->video_enabled) {
 #ifdef VIDEO_ENABLED
@@ -485,10 +487,6 @@ static void _ice_turn_dtls_call(const CallConfig *config) {
 	linphone_config_set_int(linphone_core_get_config(pauline->lc), "sip", "update_call_when_ice_completed_with_dtls",
 	                        1);
 
-	configure_nat_policy(marie->lc, config->caller_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
-	configure_nat_policy(pauline->lc, config->callee_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
 	if (config->forced_relay == TRUE) {
 		linphone_core_enable_forced_ice_relay(marie->lc, TRUE);
 		linphone_core_enable_forced_ice_relay(pauline->lc, TRUE);
@@ -521,6 +519,11 @@ static void _ice_turn_dtls_call(const CallConfig *config) {
 	linphone_core_manager_start(marie, TRUE);
 	linphone_core_manager_start(pauline, TRUE);
 
+	configure_nat_policy(marie, config->caller_turn_enabled, config->turn_tcp, config->turn_tls,
+	                     config->wrong_password);
+	configure_nat_policy(pauline, config->callee_turn_enabled, config->turn_tcp, config->turn_tls,
+	                     config->wrong_password);
+
 	linphone_core_set_video_device(pauline->lc, liblinphone_tester_mire_id);
 	linphone_core_set_video_device(marie->lc, liblinphone_tester_mire_id);
 
@@ -535,7 +538,7 @@ static void _ice_turn_dtls_call(const CallConfig *config) {
 	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &pauline->stat.number_of_LinphoneCallConnected, 1));
 	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &marie->stat.number_of_LinphoneCallConnected, 1));
 	/* Pauline shall not start dtls until the check list has verified the default pair */
-	for (attempts = 0; attempts < 100; ++attempts) {
+	for (attempts = 0; attempts < 200; ++attempts) {
 		const LinphoneStreamInternalStats *istats =
 		    _linphone_call_get_stream_internal_stats(lcall, LinphoneStreamTypeAudio);
 		BC_ASSERT_PTR_NOT_NULL(istats);

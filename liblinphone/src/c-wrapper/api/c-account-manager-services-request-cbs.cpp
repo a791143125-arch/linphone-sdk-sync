@@ -83,3 +83,14 @@ void linphone_account_manager_services_request_cbs_set_devices_list_fetched(
     LinphoneAccountManagerServicesRequestCbs *cbs, LinphoneAccountManagerServicesRequestCbsOnDevicesListFetchedCb cb) {
 	AccountManagerServicesRequestCbs::toCpp(cbs)->setDevicesListFetched(cb);
 }
+
+LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb
+linphone_account_manager_services_request_cbs_get_turn_credentials_fetched(
+	const LinphoneAccountManagerServicesRequestCbs *cbs) {
+	return AccountManagerServicesRequestCbs::toCpp(cbs)->getTurnCredentialsFetched();
+}
+
+void linphone_account_manager_services_request_cbs_set_turn_credentials_fetched(
+	LinphoneAccountManagerServicesRequestCbs *cbs, LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb cb) {
+	AccountManagerServicesRequestCbs::toCpp(cbs)->setTurnCredentialsFetched(cb);
+}

@@ -179,7 +179,8 @@ typedef enum _LinphoneAccountManagerServicesRequestType {
 	LinphoneAccountManagerServicesRequestTypeDeleteDevice = 9,   /**< Removes an account device */
 	LinphoneAccountManagerServicesRequestTypeSendAccountRecoveryTokenByPush =
 	    10, /**< Asks the account manager to send us an account recovery token by push notification */
-
+	LinphoneAccountManagerServicesRequestTypeGetTurnCredentials =
+			11, /**< Asks for the Turn credentials */
 	LinphoneAccountManagerServicesRequestTypeGetCreationTokenAsAdmin = 100,
 	LinphoneAccountManagerServicesRequestTypeGetAccountInfoAsAdmin = 101,
 	LinphoneAccountManagerServicesRequestTypeDeleteAccountAsAdmin = 102

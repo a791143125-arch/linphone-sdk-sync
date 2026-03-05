@@ -78,6 +78,9 @@ public:
 	createDeleteDeviceRequest(const std::shared_ptr<const Address> &sipIdentity,
 	                          const std::shared_ptr<const AccountDevice> &device);
 
+	// Use TurnCredentialsFetched callback to get the result from a NatPolicy and an AuthInfo.
+	std::shared_ptr<AccountManagerServicesRequest> createGetTurnCredentialsRequest(const std::shared_ptr<const Address> &sipIdentity);
+
 	std::shared_ptr<AccountManagerServicesRequest> createGetAccountCreationTokenAsAdminRequest();
 	std::shared_ptr<AccountManagerServicesRequest> createGetAccountInfoAsAdminRequest(int accountId);
 	std::shared_ptr<AccountManagerServicesRequest> createDeleteAccountAsAdminRequest(int accountId);

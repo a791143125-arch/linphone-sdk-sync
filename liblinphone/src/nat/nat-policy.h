@@ -21,6 +21,7 @@
 #ifndef nat_policy_hh
 #define nat_policy_hh
 
+#include "account-manager-services/account-manager-services.h"
 #include "auth-info/auth-info.h"
 #include "c-wrapper/c-wrapper.h"
 #include "core/core-accessor.h"
@@ -33,6 +34,13 @@ class NatPolicy : public bellesip::HybridObject<LinphoneNatPolicy, NatPolicy>,
                   public std::enable_shared_from_this<NatPolicy>,
                   public CoreAccessor {
 public:
+	typedef enum {
+		SUCCESS,
+		HTTP_ERROR,	// Response is not 200
+		INVALID_JSON_RESPONSE,	// JSON couldn't be parsed
+		MISSING_FIELDS,	// Missing fields in response
+		BAD_INPUT // Missing or bad input parameters
+	} ParsingStatus;
 	using ResolverResultsFn = std::function<void(const struct addrinfo *)>;
 	using AsyncHandle = unsigned;
 	enum class ConstructionMethod { Default, FromSectionName, FromRefName };
@@ -135,18 +143,22 @@ public:
 	void saveToConfig(LinphoneConfig *config, int index) const;
 	static void clearConfigFromIndex(LinphoneConfig *config, int index);
 
+	/* Parse a JSON HTTP response to build a NatPolicy and an AuthInfo*/
+	static ParsingStatus parseJsonConfigurationResponse(const HttpResponse &response, const std::shared_ptr<Core> &core
+		, std::shared_ptr<NatPolicy> &natPolicy
+		, std::shared_ptr<AuthInfo> &turnConfiguration);
+
 	void updateTurnConfiguration(const std::function<void(bool)> &iceGathering);
 	bool needToUpdateTurnConfiguration();
 	void cancelTurnConfigurationUpdate();
 
+	std::function<void(bool)> mCompletionRoutine = nullptr;
+
 private:
-	bool processJsonConfigurationResponse(const std::shared_ptr<NatPolicy> sharedNatPolicy,
-	                                      const HttpResponse &response);
 	void initFromSection(const LinphoneConfig *config, const char *section);
 	void stunServerResolved(belle_sip_resolver_results_t *results);
 	void clearResolverContexts();
 	void *mUserData = nullptr;
-	std::function<void(bool)> mCompletionRoutine = nullptr;
 	SalResolverContext mStunResolverContext;
 	belle_sip_resolver_results_t *mResolverResults = nullptr;
 	std::map<AsyncHandle, ResolverResultsFn> mResolverResultsFunctions;
@@ -164,6 +176,7 @@ private:
 	bool mTurnUdpEnabled = false;
 	bool mTurnTcpEnabled = false;
 	bool mTurnTlsEnabled = false;
+	std::shared_ptr<AccountManagerServices> mAccountManagerServices;
 };
 
 LINPHONE_END_NAMESPACE

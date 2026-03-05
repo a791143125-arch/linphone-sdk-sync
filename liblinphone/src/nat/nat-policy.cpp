@@ -240,7 +240,11 @@ bool NatPolicy::resolveStunServer() {
 			ms_message("Starting stun server resolution [%s]", host);
 			auto lambda = [this](belle_sip_resolver_results_t *results) { this->stunServerResolved(results); };
 			if (port == 0) {
-				port = 3478;
+				// Use default ports
+				if (mTurnTlsEnabled)
+					port = 5349;
+				else
+					port = 3478;
 				mStunResolverContext = lc->sal->resolve(service, "udp", host, port, family, lambda);
 			} else {
 				mStunResolverContext = lc->sal->resolveA(host, port, family, lambda);
@@ -331,98 +335,113 @@ void NatPolicy::setTurnConfigurationEndpoint(const std::string &endpoint) {
 	mTurnConfigurationEndpoint = endpoint;
 }
 
-bool NatPolicy::processJsonConfigurationResponse(const std::shared_ptr<NatPolicy> sharedNatPolicy,
-                                                 const HttpResponse &response) {
-	bool ret = true;
-	try {
-		if (response.getHttpStatusCode() != 200) {
-			lError() << "Failed to fetch TURN credentials. HTTP Status Code: " << response.getHttpStatusCode();
-			throw std::runtime_error("Failed to fetch TURN credentials: Invalid HTTP status code.");
-		}
+NatPolicy::ParsingStatus NatPolicy::parseJsonConfigurationResponse(const HttpResponse &response
+	, const std::shared_ptr<Core> &core
+	, std::shared_ptr<NatPolicy> &natPolicy
+	, std::shared_ptr<AuthInfo> &turnConfiguration) {
+	if ( !core) {
+		lError() << "Core is not defined.";
+		return BAD_INPUT;
+	}
+	if (response.getHttpStatusCode() != 200) {
+		lError() << "Failed to parse TURN credentials. HTTP Status Code: " << response.getHttpStatusCode();
+		return HTTP_ERROR;
+	}
+	const auto &responseBody = response.getBody();
+	JsonDocument doc(responseBody);
+	const Json::Value &root = doc.getRoot();
+	if (root.isNull() || !root.isObject()) {
+		lError() << "Invalid JSON response for TURN credentials: " << responseBody;
+		return INVALID_JSON_RESPONSE;
+	}
 
-		const auto &responseBody = response.getBody();
-		JsonDocument doc(responseBody);
-		const Json::Value &root = doc.getRoot();
+	constexpr const char *usernameKey = "username";
+	constexpr const char *passwordKey = "password";
+	constexpr const char *timeToLeaveKey = "ttl";
+	constexpr const char *urisKey = "uris";
 
-		if (root.isNull() || !root.isObject()) {
-			lError() << "Invalid JSON response for TURN credentials: " << responseBody;
-			throw std::runtime_error("Invalid JSON response for TURN credentials.");
-		}
-
-		constexpr const char *usernameKey = "username";
-		constexpr const char *passwordKey = "password";
-		constexpr const char *timeToLeaveKey = "ttl";
-		constexpr const char *urisKey = "uris";
-
-		if (!root.isMember(usernameKey) || !root[usernameKey].isString() || !root.isMember(passwordKey) ||
-		    !root[passwordKey].isString()) {
-			lError() << "Missing required fields in TURN credentials JSON response: " << responseBody;
-			throw std::runtime_error("Missing required fields in TURN credentials JSON response.");
-		}
-
-		auto turnConfiguration =
-		    AuthInfo::create(root[usernameKey].asString(), "", root[passwordKey].asString(), "", "", "", "");
-
-		if (root.isMember(timeToLeaveKey) && root[timeToLeaveKey].isInt()) {
-			// To avoid potential configuration expiration before a new request can be made, the expiration time
-			// is set to 80% of the given duration. This ensures a buffer period for timely renewal.
-			auto expiration = (int)(root[timeToLeaveKey].asInt() * 0.8);
-			time_t expires = time(nullptr) + expiration;
-			turnConfiguration->setExpires(expires);
-		}
-
-		linphone_core_add_auth_info(sharedNatPolicy->getCore()->getCCore(), turnConfiguration->toC());
-
-		if (root.isMember(urisKey) && root[urisKey].isArray() && !root[urisKey].empty()) {
-			auto firstUri = root[urisKey].begin();
-			if (firstUri->isString()) {
-				auto uri = firstUri->asString();
-				/* This regex pattern extracts the part after "turn:" and before "?" in a TURN URI.
-				 * ^turn:      -> Matches the literal "turn:" at the beginning of the string.
-				 * ([^?]+)     -> Captures everything after "turn:" up to (but not including) the first "?".
-				 * The captured group (match[1]) contains the desired hostname and port.
-				 * */
-				std::regex pattern(R"(^turn:([^?]+))");
-				std::smatch match;
-				if (std::regex_search(uri, match, pattern)) {
-					sharedNatPolicy->mStunServer = match[1].str();
-				}
+	if (!root.isMember(usernameKey) || !root[usernameKey].isString() || !root.isMember(passwordKey) ||
+		!root[passwordKey].isString()) {
+		lError() << "Missing required fields in TURN credentials JSON response: " << responseBody;
+		return MISSING_FIELDS;
+	}
+	turnConfiguration = AuthInfo::create(root[usernameKey].asString(), "", root[passwordKey].asString(), "", "", "", "");
+	if (root.isMember(timeToLeaveKey) && root[timeToLeaveKey].isInt()) {
+		// To avoid potential configuration expiration before a new request can be made, the expiration time
+		// is set to 80% of the given duration. This ensures a buffer period for timely renewal.
+		auto expiration = (int)(root[timeToLeaveKey].asInt() * 0.8);
+		time_t expires = time(nullptr) + expiration;
+		turnConfiguration->setExpires(expires);
+	}
+	natPolicy = NatPolicy::create(core);
+	if (root.isMember(urisKey) && root[urisKey].isArray() && !root[urisKey].empty()) {
+		auto firstUri = root[urisKey].begin();
+		if (firstUri->isString()) {
+			auto uri = firstUri->asString();
+			/* This regex pattern extracts the part after "turn:" and before "?" in a TURN URI.
+			 * ^turn:      -> Matches the literal "turn:" at the beginning of the string.
+			 * ([^?]+)     -> Captures everything after "turn:" up to (but not including) the first "?".
+			 * The captured group (match[1]) contains the desired hostname and port.
+			 * */
+			std::regex pattern(R"(^turn:([^?]+))");
+			std::smatch match;
+			if (std::regex_search(uri, match, pattern)) {
+				natPolicy->mStunServer = match[1].str();
 			}
 		}
-
-		sharedNatPolicy->mStunServerUsername = root[usernameKey].asString();
-
-		lInfo() << "TURN credentials successfully updated.";
-
-	} catch (const std::exception &e) {
-		lError() << "Exception while updating TURN credentials: " << e.what();
-		ret = false;
 	}
-	return ret;
+
+	natPolicy->mStunServerUsername = root[usernameKey].asString();
+
+	return SUCCESS;
+}
+
+void retrieveConfigurationCbs(const LinphoneAccountManagerServicesRequest *request, const LinphoneNatPolicy *nat_policy, const LinphoneAuthInfo *turn_config){
+	auto cbs = linphone_account_manager_services_request_get_current_callbacks(request);
+	auto policy = ((std::weak_ptr<NatPolicy>*) linphone_account_manager_services_request_cbs_get_user_data(cbs))->lock();
+	if (policy) {
+		policy->setStunServerUsername(linphone_nat_policy_get_stun_server_username(nat_policy));
+		policy->setStunServer(linphone_nat_policy_get_stun_server(nat_policy));
+		linphone_core_add_auth_info(policy->getCore()->getCCore(), turn_config);
+	}
+}
+
+// Last cbs call, success or error. We have to clean user data at the end.
+static void successConfigurationCbs(const LinphoneAccountManagerServicesRequest *request, const char *) {
+	auto cbs = linphone_account_manager_services_request_get_current_callbacks(request);
+	auto policyPtr = ((std::weak_ptr<NatPolicy>*) linphone_account_manager_services_request_cbs_get_user_data(cbs));
+	auto policy = policyPtr->lock();
+	if (policy && policy->mCompletionRoutine) policy->mCompletionRoutine(true);
+	delete policyPtr;
+}
+
+static void errorConfigurationCbs(const LinphoneAccountManagerServicesRequest *request, int,const char *,	const LinphoneDictionary *) {
+	auto cbs = linphone_account_manager_services_request_get_current_callbacks(request);
+	auto policyPtr = ((std::weak_ptr<NatPolicy>*) linphone_account_manager_services_request_cbs_get_user_data(cbs));
+	auto policy = policyPtr->lock();
+	if (policy && policy->mCompletionRoutine) policy->mCompletionRoutine(false);
+	delete policyPtr;
 }
 
 void NatPolicy::updateTurnConfiguration(const std::function<void(bool)> &completionRoutine) {
-	try {
-		mCompletionRoutine = completionRoutine;
-		auto &httpClient = getCore()->getHttpClient();
-		auto &httpRequest = httpClient.createRequest("GET", mTurnConfigurationEndpoint);
+	mCompletionRoutine = completionRoutine;
 
-		std::weak_ptr<NatPolicy> natPolicyRef = shared_from_this();
-		httpRequest.execute([natPolicyRef](const HttpResponse &response) -> void {
-			auto sharedNatPolicy = natPolicyRef.lock();
-			if (sharedNatPolicy) {
-				bool ret = sharedNatPolicy->processJsonConfigurationResponse(sharedNatPolicy, response);
-				if (sharedNatPolicy->mCompletionRoutine) sharedNatPolicy->mCompletionRoutine(ret);
-			}
-		});
-	} catch (const std::exception &e) {
-		lError() << __func__
-		         << ": Error while creating or sending HTTP request to update TURN configuration : " << e.what();
-	}
+	if (!mAccountManagerServices) mAccountManagerServices = AccountManagerServices::create(this->getCore()->getCCore());
+	auto request = mAccountManagerServices->createGetTurnCredentialsRequest(this->getCore()->getDefaultAccount()->getContactAddress());
+
+	std::shared_ptr<AccountManagerServicesRequestCbs> cbs = AccountManagerServicesRequestCbs::create();
+	// Request is async. We need to keep a weakref in order to ensure the usability of the object
+	std::weak_ptr<NatPolicy>* natPolicyRef = new std::weak_ptr<NatPolicy>(shared_from_this());
+	cbs->setUserData(natPolicyRef);
+	cbs->setTurnCredentialsFetched(retrieveConfigurationCbs);
+	cbs->setRequestSuccessful(successConfigurationCbs);
+	cbs->setRequestError(errorConfigurationCbs);
+	request->addCallbacks(cbs);
+	request->submit();
 }
 
 bool NatPolicy::needToUpdateTurnConfiguration() {
-	if (!mTurnConfigurationEndpoint.empty()) {
+	if ( (mStunEnabled || mTurnEnabled) && linphone_core_get_account_creator_url(getCore()->getCCore()) != NULL) {
 		auto ai = linphone_core_find_auth_info(getCore()->getCCore(), nullptr, mStunServerUsername.c_str(), nullptr);
 		if (ai == nullptr) {
 			return true;

@@ -169,6 +169,15 @@ LinphoneAccountManagerServicesRequest *linphone_account_manager_services_create_
 // =============================================================================
 
 LinphoneAccountManagerServicesRequest *
+linphone_account_manager_services_create_get_turn_credentials_request(LinphoneAccountManagerServices *ams, const LinphoneAddress *sip_identity) {
+	auto request =
+		AccountManagerServices::toCpp(ams)->createGetTurnCredentialsRequest(Address::getSharedFromThis(sip_identity));
+	request->ref();
+	return request->toC();
+}
+// =============================================================================
+
+LinphoneAccountManagerServicesRequest *
 linphone_account_manager_services_create_get_account_creation_token_as_admin_request(
     LinphoneAccountManagerServices *ams) {
 	auto request = AccountManagerServices::toCpp(ams)->createGetAccountCreationTokenAsAdminRequest();
