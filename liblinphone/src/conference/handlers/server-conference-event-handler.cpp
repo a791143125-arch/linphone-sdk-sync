@@ -1151,7 +1151,7 @@ void ServerConferenceEventHandler::notifyParticipantDevice(const shared_ptr<Cont
 	cbs->setUserData(this);
 	cbs->mNotifyResponseCb = notifyResponseCb;
 	ev->addCallbacks(cbs);
-	if (ev->notify(content) == 0) {
+	if (ev->notify(content) != 0) {
 		lError() << "Unable to send NOTIFY message to " << *device << " being subscribed to " << *conf << " through "
 		         << *ev;
 	}
@@ -1198,7 +1198,19 @@ LinphoneStatus ServerConferenceEventHandler::subscribeReceived(const shared_ptr<
 		auto oldEv = device->getConferenceSubscribeEvent();
 		device->setConferenceSubscribeEvent(ev);
 		if (oldEv) {
-			oldEv->terminate();
+			const auto conferenceAddress = conf->getConferenceAddress()->getUriWithoutGruu();
+			const auto oldEvTo = oldEv->getTo()->getUriWithoutGruu();
+			// Need to compare address string. In fact according to RFC3261
+			// (https://www.rfc-editor.org/rfc/rfc3261#page-153):
+			// -  All other uri-parameters appearing in only one URI are
+			//    ignored when comparing the URIs.
+			// This will cause false positives if the conference factory address is the same as the focus
+			// address. Under such scenario, we end up with a resource-list SUBSCRIBE sent to a factory address
+			// and the chatroom conference address being that very same factory address with a conf-id URI
+			// parameter.
+			if (oldEvTo.toStringUriOnlyOrdered() == conferenceAddress.toStringUriOnlyOrdered()) {
+				oldEv->terminate();
+			}
 		}
 		shared_ptr<Participant> participant = device->getParticipant();
 		if ((evLastNotify == 0) || (deviceState == ParticipantDevice::State::Joining)) {

@@ -124,14 +124,15 @@ void ClientConferenceEventHandler::fillParticipantAttributes(
 	}
 }
 
-void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xmlBody) {
+ClientConferenceEventHandlerBase::NotifyParsingResult
+ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xmlBody) {
 	istringstream data(xmlBody);
 	unique_ptr<ConferenceType> confInfo;
 	try {
 		confInfo = parseConferenceInfo(data, Xsd::XmlSchema::Flags::dont_validate);
 	} catch (const exception &) {
 		lError() << "Error while parsing conference-info notify for: " << getConferenceId();
-		return;
+		return ClientConferenceEventHandlerBase::NotifyParsingResult::Error;
 	}
 
 	try {
@@ -140,7 +141,7 @@ void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xm
 		if (waitingFullState && !isFullState) {
 			// No need to do any processing if the client is waiting a full state
 			lError() << "Unable to process received NOTIFY because " << *conference << " is waiting a full state";
-			return;
+			return ClientConferenceEventHandlerBase::NotifyParsingResult::Error;
 		} else {
 			waitingFullState = false;
 		}
@@ -157,7 +158,7 @@ void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xm
 			         << " because the entity address " << prunedEntityAddress
 			         << " doesn't match the conference address " << prunedConferenceAddress
 			         << " or the conference address is not valid";
-			return;
+			return ClientConferenceEventHandlerBase::NotifyParsingResult::Error;
 		}
 
 		if (isFullState) {
@@ -194,7 +195,7 @@ void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xm
 					           << ") should be stricly larger than the current notify version (" << currentNotifyVersion
 					           << ")";
 					requestFullState();
-					return;
+					return ClientConferenceEventHandlerBase::NotifyParsingResult::NeedFullState;
 				}
 				conference->setLastNotify(version.get());
 				if (chatRoom) {
@@ -285,8 +286,8 @@ void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xm
 								}
 								cgcr->enableEphemeral(lifetime, notReadLifetime, false, false);
 								if (!isFullState) {
-									conference->notifyEphemeralMessageEnabled(
-									    creationTime, isFullState, cgcr->ephemeralEnabled());
+									conference->notifyEphemeralMessageEnabled(creationTime, isFullState,
+									                                          cgcr->ephemeralEnabled());
 									conference->notifyEphemeralLifetimeChanged(
 									    creationTime, isFullState,
 									    cgcr->getCurrentParams()->getChatParams()->getEphemeralLifetime(),
@@ -335,7 +336,9 @@ void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xm
 		}
 
 		auto &users = confInfo->getUsers();
-		if (!users.present()) return;
+		if (!users.present()) {
+			return ClientConferenceEventHandlerBase::NotifyParsingResult::Success;
+		}
 
 		// 4. Notify changes on users.
 		for (auto &user : users->getUser()) {
@@ -798,7 +801,9 @@ void ClientConferenceEventHandler::conferenceInfoNotifyReceived(const string &xm
 		// Core is destroyed
 		lError() << "ClientConferenceEventHandler [" << this
 		         << "]: Unable to deal with incoming NOTIFY message as the core has already been destroyed";
+		return ClientConferenceEventHandlerBase::NotifyParsingResult::Error;
 	}
+	return ClientConferenceEventHandlerBase::NotifyParsingResult::Success;
 }
 
 bool ClientConferenceEventHandler::requestFullState() {
@@ -839,13 +844,13 @@ bool ClientConferenceEventHandler::needToSubscribe() const {
 
 void ClientConferenceEventHandler::subscribeStateChangedCb(LinphoneEvent *lev, LinphoneSubscriptionState state) {
 	if (state == LinphoneSubscriptionError) {
-		auto ev = dynamic_pointer_cast<EventSubscribe>(Event::toCpp(lev)->getSharedFromThis());
-		auto cbs = ev->getCurrentCallbacks();
+		auto event = dynamic_pointer_cast<EventSubscribe>(Event::toCpp(lev)->getSharedFromThis());
+		auto cbs = event->getCurrentCallbacks();
 		ClientConferenceEventHandler *handler = static_cast<ClientConferenceEventHandler *>(cbs->getUserData());
 		handler->setInitialSubscriptionUnderWayFlag(false);
 		auto conf = handler->getConference();
-		if (conf && (ev->getReason() == LinphoneReasonDeclined)) {
-			lInfo() << "Leave " << *conf << " because the subscription [" << ev << "] errored out";
+		if (conf && (event->getReason() == LinphoneReasonDeclined)) {
+			lInfo() << "Leave " << *conf << " because the subscription [" << event << "] errored out";
 			auto mainSession = conf->getMainSession();
 			if (mainSession) {
 				mainSession->terminate();
@@ -931,22 +936,22 @@ bool ClientConferenceEventHandler::subscribe() {
 		}
 		const int eventSubscribeExpire = linphone_config_get_int(linphone_core_get_config(getCore()->getCCore()), "sip",
 		                                                         "conference_subscribe_expires", 600);
-		ev = dynamic_pointer_cast<EventSubscribe>(
+		mEvent = dynamic_pointer_cast<EventSubscribe>(
 		    (new EventSubscribe(getCore(), subscribeToHeader, account, "conference", eventSubscribeExpire))
 		        ->toSharedPtr());
-		ev->overridePrivacy(privacy);
+		mEvent->overridePrivacy(privacy);
 		shared_ptr<EventCbs> cbs = EventCbs::create();
 		cbs->setUserData(this);
 		cbs->subscribeStateChangedCb = subscribeStateChangedCb;
-		ev->addCallbacks(cbs);
-		ev->getOp()->setFromAddress(localAddress->getImpl());
+		mEvent->addCallbacks(cbs);
+		mEvent->getOp()->setFromAddress(localAddress->getImpl());
 		const string &lastNotifyStr = Utils::toString(getLastNotify());
-		ev->addCustomHeader("Last-Notify-Version", lastNotifyStr.c_str());
-		ev->setInternal(true);
-		ev->setProperty("event-handler-private", this);
+		mEvent->addCustomHeader("Last-Notify-Version", lastNotifyStr.c_str());
+		mEvent->setInternal(true);
+		mEvent->setProperty("event-handler-private", this);
 		lInfo() << "ClientConferenceEventHandler [" << this << "]: " << *localAddress << " is subscribing to "
 		        << *conference << " with last notify: " << lastNotifyStr;
-		auto subscribeOk = (ev->send(nullptr) == 0);
+		auto subscribeOk = (mEvent->send(nullptr) == 0);
 		setInitialSubscriptionUnderWayFlag(subscribeOk);
 		startWaitNotifyTimer();
 		return subscribeOk;
@@ -960,12 +965,12 @@ bool ClientConferenceEventHandler::subscribe() {
 // -----------------------------------------------------------------------------
 
 void ClientConferenceEventHandler::unsubscribePrivate() {
-	if (ev) {
+	if (mEvent && !managedByListEventHandler) {
 		/* The following tricky code is to break a cycle. Indeed linphone_event_terminate() will change the event's
 		 * state, which will be notified to the core, that will call us immediately in invalidateSubscription(),
-		 * which resets 'ev' while we still have to unref it.*/
-		shared_ptr<EventSubscribe> tmpEv = ev;
-		ev = nullptr;
+		 * which resets 'mEvent' while we still have to unref it.*/
+		shared_ptr<EventSubscribe> tmpEv = mEvent;
+		setEvent(nullptr);
 		tmpEv->terminate();
 		stopWaitNotifyTimer();
 	}
@@ -1012,26 +1017,26 @@ void ClientConferenceEventHandler::onEnteringForeground() {
 }
 
 void ClientConferenceEventHandler::invalidateSubscription() {
-	if (ev) {
+	if (mEvent) {
 		auto conf = getConference();
-		if ((ev->getState() == LinphoneSubscriptionError) &&
+		if ((mEvent->getState() == LinphoneSubscriptionError) &&
 		    (conf->getState() == ConferenceInterface::State::CreationPending)) {
 			// The conference received an answer to its SUBSCRIBE and the server is not supporting the conference
 			// event package
 			conf->setState(ConferenceInterface::State::Created);
 		}
-		ev = nullptr;
+		setEvent(nullptr);
 	}
 }
 
 LinphoneSubscriptionState ClientConferenceEventHandler::getSubscriptionState() const {
 	auto state = LinphoneSubscriptionNone;
 	if (managedByListEventHandler) {
-		state =
-		    getCore()->getPrivate()->clientListEventHandler->getSubscriptionState(getConferenceId().getLocalAddress());
+		state = getCore()->getPrivate()->clientListEventHandler->getSubscriptionState(
+		    getConferenceId().getLocalAddress(), getConferenceId().getPeerAddress());
 	} else {
-		if (ev) {
-			state = ev->getState();
+		if (mEvent) {
+			state = mEvent->getState();
 		}
 	}
 	return state;
@@ -1051,31 +1056,45 @@ void ClientConferenceEventHandler::unsubscribe() {
 	unsubscribePrivate();
 }
 
-void ClientConferenceEventHandler::notifyReceived(BCTBX_UNUSED(std::shared_ptr<Event> notifyLev),
-                                                  const Content &content) {
-	notifyReceived(content);
+ClientConferenceEventHandlerBase::NotifyParsingResult
+ClientConferenceEventHandler::notifyReceived(BCTBX_UNUSED(std::shared_ptr<Event> notifyLev), const Content &content) {
+	return notifyReceived(content);
 }
 
-void ClientConferenceEventHandler::notifyReceived(const Content &content) {
+ClientConferenceEventHandlerBase::NotifyParsingResult
+ClientConferenceEventHandler::notifyReceived(const Content &content) {
+	auto result = ClientConferenceEventHandlerBase::NotifyParsingResult::Success;
 	lInfo() << "NOTIFY received for conference: " << getConferenceId() << " - Content type "
 	        << content.getContentType().getType() << " subtype " << content.getContentType().getSubType();
 	const ContentType &contentType = content.getContentType();
 	if (contentType == ContentType::ConferenceInfo) {
-		conferenceInfoNotifyReceived(content.getBodyAsUtf8String());
+		result = conferenceInfoNotifyReceived(content.getBodyAsUtf8String());
 	}
-	notifySubscriptionUnderwayDone();
+	if (result == ClientConferenceEventHandlerBase::NotifyParsingResult::Success) {
+		notifySubscriptionUnderwayDone();
+	}
+	return result;
 }
 
-void ClientConferenceEventHandler::multipartNotifyReceived(BCTBX_UNUSED(std::shared_ptr<Event> notifyLev),
-                                                           const Content &content) {
-	multipartNotifyReceived(content);
+ClientConferenceEventHandlerBase::NotifyParsingResult
+ClientConferenceEventHandler::multipartNotifyReceived(BCTBX_UNUSED(std::shared_ptr<Event> notifyLev),
+                                                      const Content &content) {
+	return multipartNotifyReceived(content);
 }
 
-void ClientConferenceEventHandler::multipartNotifyReceived(const Content &content) {
+ClientConferenceEventHandlerBase::NotifyParsingResult
+ClientConferenceEventHandler::multipartNotifyReceived(const Content &content) {
 	lInfo() << "multipart NOTIFY received for conference: " << getConferenceId();
+	auto result = ClientConferenceEventHandlerBase::NotifyParsingResult::Success;
 	for (const auto &c : ContentManager::multipartToContentList(content)) {
-		notifyReceived(c);
+		auto partialResult = notifyReceived(c);
+		if (partialResult == ClientConferenceEventHandlerBase::NotifyParsingResult::NeedFullState) {
+			return partialResult;
+		} else if (partialResult == ClientConferenceEventHandlerBase::NotifyParsingResult::Error) {
+			result = partialResult;
+		}
 	}
+	return result;
 }
 
 shared_ptr<Conference> ClientConferenceEventHandler::getConference() const {
@@ -1122,6 +1141,10 @@ void ClientConferenceEventHandler::notifySubscriptionUnderwayDone() {
 	setInitialSubscriptionUnderWayFlag(false);
 	auto conference = dynamic_pointer_cast<ClientConference>(getConference());
 	if (conference) conference->onSubscriptionUnderwayDone();
+}
+
+void ClientConferenceEventHandler::setEvent(const std::shared_ptr<EventSubscribe> event) {
+	mEvent = event;
 }
 
 LINPHONE_END_NAMESPACE

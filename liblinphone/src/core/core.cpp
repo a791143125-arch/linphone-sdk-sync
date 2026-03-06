@@ -3549,6 +3549,21 @@ end:
 	return foundAccount;
 }
 
+std::shared_ptr<Account> Core::findAccountByContactAddress(const std::shared_ptr<const Address> contact) const {
+	std::shared_ptr<Account> found = nullptr;
+	if (!contact) return found;
+
+	const auto accounts = mAccounts.mList;
+	for (const auto &account : accounts) {
+		const auto &address = account->getContactAddress();
+		if (address && (*contact == *address)) {
+			found = account;
+			break;
+		}
+	}
+	return found;
+}
+
 std::shared_ptr<Account> Core::findAccountByIdentityAddress(const std::shared_ptr<const Address> identity) const {
 	std::shared_ptr<Account> found = nullptr;
 	if (!identity) return found;

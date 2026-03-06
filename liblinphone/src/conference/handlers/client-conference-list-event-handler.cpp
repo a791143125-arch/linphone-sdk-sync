@@ -67,10 +67,168 @@ bool ClientConferenceListEventHandler::subscribe() {
 	return ret;
 }
 
-bool ClientConferenceListEventHandler::subscribe(const shared_ptr<Account> &account) {
-	unsubscribe(account);
+std::optional<std::shared_ptr<EventSubscribe>>
+ClientConferenceListEventHandler::subscribe(const std::shared_ptr<Event> &event,
+                                            const std::map<string, std::shared_ptr<Address>> &addresses) {
+	auto content = Content::create();
+	content->setContentType(ContentType::ResourceLists);
 
-	if (handlers.empty()) {
+	Xsd::ResourceLists::ResourceLists rl = Xsd::ResourceLists::ResourceLists();
+	Xsd::ResourceLists::ListType l = Xsd::ResourceLists::ListType();
+
+	const int eventSubscribeExpire = linphone_config_get_int(linphone_core_get_config(getCore()->getCCore()), "sip",
+	                                                         "conference_subscribe_expires", 600);
+	const auto &from = event->getFrom();
+	auto account = getCore()->findAccountByContactAddress(from);
+	auto evSub = dynamic_pointer_cast<EventSubscribe>(
+	    (new EventSubscribe(getCore(), event->getTo(), account, "conference", eventSubscribeExpire))->toSharedPtr());
+
+	bool entryAdded = false;
+	const auto conferenceIdParams = getCore()->createConferenceIdParams();
+	for (const auto &[instanceId, address] : addresses) {
+		ConferenceId id(address, from, conferenceIdParams);
+		const auto &handler = findHandler(id);
+
+		auto peerAddress = address->getUriWithoutGruu();
+		peerAddress.removeUriParam(Conference::sConfIdParameter);
+		Address addr = id.getPeerAddress()->getUri();
+		const auto lastNotify = handler->getLastNotify();
+		addr.setUriParam("Last-Notify", Utils::toString(lastNotify));
+		handler->setInitialSubscriptionUnderWayFlag(!handler->alreadySubscribed());
+		Xsd::ResourceLists::EntryType entry = Xsd::ResourceLists::EntryType(addr.asStringUriOnly());
+		l.getEntry().push_back(entry);
+		entryAdded = true;
+		handler->setManagedByListEventHandler(true);
+		// Assign the event to the ClientConferenceEventHandler object so that it can be notified when a
+		// NOTIFY is received. This is particularly useful to allow clients send queued messages in
+		// encrypted chatrooms.
+		handler->setEvent(evSub);
+	}
+	if (!entryAdded) {
+		return std::nullopt;
+	}
+	rl.getList().push_back(l);
+
+	Xsd::XmlSchema::NamespaceInfomap map;
+	stringstream xmlBody;
+	serializeResourceLists(xmlBody, rl, map);
+	content->setBodyFromUtf8(xmlBody.str());
+
+	evSub->getOp()->setFromAddress(from->getImpl());
+	evSub->setInternal(true);
+	evSub->addCustomHeader("Require", "recipient-list-subscribe");
+	evSub->addCustomHeader("Accept", "multipart/related, application/conference-info+xml, application/rlmi+xml");
+	evSub->addCustomHeader("Content-Disposition", "recipient-list");
+	LinphoneCore *lc = getCore()->getCCore();
+	if (linphone_core_content_encoding_supported(lc, "deflate")) {
+		content->setContentEncoding("deflate");
+		evSub->addCustomHeader("Accept-Encoding", "deflate");
+	}
+	evSub->setProperty("event-handler-private", this);
+	if (evSub->send(content) == 0) {
+		return evSub;
+	}
+	return std::nullopt;
+}
+
+std::optional<std::shared_ptr<EventSubscribe>> ClientConferenceListEventHandler::subscribe(
+    const std::shared_ptr<Account> &account, const Address &to, bool isFactoryUri) {
+	const auto &from = account->getContactAddress();
+
+	if (alreadySubscribed(from, Address::create(to))) {
+		lDebug() << *account << " has already an active subscription to " << to;
+		return std::nullopt;
+	}
+
+	auto content = Content::create();
+	content->setContentType(ContentType::ResourceLists);
+
+	Xsd::ResourceLists::ResourceLists rl = Xsd::ResourceLists::ResourceLists();
+	Xsd::ResourceLists::ListType l = Xsd::ResourceLists::ListType();
+
+	const int eventSubscribeExpire = linphone_config_get_int(linphone_core_get_config(getCore()->getCCore()), "sip",
+	                                                         "conference_subscribe_expires", 600);
+	auto evSub = dynamic_pointer_cast<EventSubscribe>(
+	    (new EventSubscribe(getCore(), to, account, "conference", eventSubscribeExpire))->toSharedPtr());
+
+	bool entryAdded = false;
+	auto &handlers = (isFactoryUri) ? mLegacyChatRoomHandlers : mHandlers;
+	for (const auto &[key, handlerWkPtr] : handlers) {
+		try {
+			const std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
+			const ConferenceId &conferenceId = handler->getConferenceId();
+			const auto &localAddress = conferenceId.getLocalAddress();
+			if (from->weakEqual(*localAddress)) {
+				auto peerAddress = conferenceId.getPeerAddress()->getUriWithoutGruu();
+				bool hasConfIdParams = peerAddress.hasUriParam(Conference::sConfIdParameter);
+				peerAddress.removeUriParam(Conference::sConfIdParameter);
+				// If the event To address is the factory URI, then list all chatroom that do not have a conf-id
+				// parameter in their conference address If the event To address is not the factory URI, then
+				// compare the ordered string because servers may add custom parameters which may cause a false
+				// positive. For instance, according to RFC3261, sip:bob@example.net;a=xxx and
+				// sip:bob@example.one;b=aaa are equal. In our case, we want to make sure that a comparison using
+				// the addresses from the above example doesn't return true as it means that two different
+				// conference servers may be handling the chatrooms.
+				if ((isFactoryUri && !hasConfIdParams) ||
+				    (hasConfIdParams && (peerAddress.toStringUriOnlyOrdered() == to.toStringUriOnlyOrdered()))) {
+					shared_ptr<AbstractChatRoom> cr = getCore()->findChatRoom(conferenceId, false);
+					if (!cr) {
+						lError() << "Couldn't add chat room " << conferenceId
+						         << " in the chat room list subscription because chat room couldn't be found";
+						continue;
+					}
+					if (cr->hasBeenLeft()) continue;
+
+					Address addr = conferenceId.getPeerAddress()->getUri();
+					const auto lastNotify = handler->getLastNotify();
+					addr.setUriParam("Last-Notify", Utils::toString(lastNotify));
+					handler->setInitialSubscriptionUnderWayFlag(!handler->alreadySubscribed());
+					Xsd::ResourceLists::EntryType entry = Xsd::ResourceLists::EntryType(addr.asStringUriOnly());
+					l.getEntry().push_back(entry);
+					entryAdded = true;
+					handler->setManagedByListEventHandler(true);
+					// Assign the event to the ClientConferenceEventHandler object so that it can be notified when a
+					// NOTIFY is received. This is particularly useful to allow clients send queued messages in
+					// encrypted chatrooms.
+					handler->setEvent(evSub);
+				}
+			}
+		} catch (const bad_weak_ptr &) {
+		}
+	}
+	if (!entryAdded) {
+		return std::nullopt;
+	}
+	rl.getList().push_back(l);
+
+	Xsd::XmlSchema::NamespaceInfomap map;
+	stringstream xmlBody;
+	serializeResourceLists(xmlBody, rl, map);
+	content->setBodyFromUtf8(xmlBody.str());
+
+	evSub->getOp()->setFromAddress(from->getImpl());
+	evSub->setInternal(true);
+	evSub->addCustomHeader("Require", "recipient-list-subscribe");
+	evSub->addCustomHeader("Accept", "multipart/related, application/conference-info+xml, application/rlmi+xml");
+	evSub->addCustomHeader("Content-Disposition", "recipient-list");
+	LinphoneCore *lc = getCore()->getCCore();
+	if (linphone_core_content_encoding_supported(lc, "deflate")) {
+		content->setContentEncoding("deflate");
+		evSub->addCustomHeader("Accept-Encoding", "deflate");
+	}
+	evSub->setProperty("event-handler-private", this);
+	if (evSub->send(content) == 0) {
+		return evSub;
+	}
+	return std::nullopt;
+}
+
+bool ClientConferenceListEventHandler::subscribe(const shared_ptr<Account> &account, bool unsubscribeFirst) {
+	if (unsubscribeFirst) {
+		unsubscribe(account);
+	}
+
+	if (mHandlers.empty() && mLegacyChatRoomHandlers.empty()) {
 		lError() << "Unable to subscribe to the conference event package (RFC 4575) of all chatrooms linked to "
 		         << *account << " because no handler is available";
 		return false;
@@ -85,125 +243,121 @@ bool ClientConferenceListEventHandler::subscribe(const shared_ptr<Account> &acco
 	}
 
 	const auto &accountParams = account->getAccountParams();
-	auto identityAddress = accountParams->getIdentityAddress();
-
 	const auto &factoryUri = accountParams->getConferenceFactoryAddress();
-	if (!factoryUri || !factoryUri->isValid()) {
-		lError() << "Couldn't send chat room list subscription for " << *account
-		         << " because there's no conference factory uri";
-		return false;
+	bool factoryUriIsValid = factoryUri && factoryUri->isValid();
+
+	const auto &contactAddress = account->getContactAddress();
+	std::list<std::shared_ptr<EventSubscribe>> accountEvs;
+	auto accountEvsOpt = findEvents(contactAddress);
+	if (accountEvsOpt) {
+		accountEvs = accountEvsOpt.value();
 	}
 
-	auto content = Content::create();
-	content->setContentType(ContentType::ResourceLists);
-
-	Xsd::ResourceLists::ResourceLists rl = Xsd::ResourceLists::ResourceLists();
-	Xsd::ResourceLists::ListType l = Xsd::ResourceLists::ListType();
-
-	for (const auto &[key, handlerWkPtr] : handlers) {
-		try {
-			const std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
-			const ConferenceId &conferenceId = handler->getConferenceId();
-			if (identityAddress->weakEqual(*conferenceId.getLocalAddress())) {
-				shared_ptr<AbstractChatRoom> cr = getCore()->findChatRoom(conferenceId, false);
-				if (!cr) {
-					lError() << "Couldn't add chat room " << conferenceId
-					         << " to the chat room list subscription because chat room couldn't be found";
-					continue;
-				}
-				if (cr->hasBeenLeft()) continue;
-
-				Address addr = conferenceId.getPeerAddress()->getUri();
-				const auto lastNotify = handler->getLastNotify();
-				addr.setUriParam("Last-Notify", Utils::toString(lastNotify));
-				handler->setInitialSubscriptionUnderWayFlag(!handler->alreadySubscribed());
-				Xsd::ResourceLists::EntryType entry = Xsd::ResourceLists::EntryType(addr.asStringUriOnly());
-				l.getEntry().push_back(entry);
-				handler->setManagedByListEventHandler(true);
-			}
-		} catch (const bad_weak_ptr &) {
+	bool success = (mUniqueFocuses.size() > 0) || factoryUriIsValid;
+	for (const auto &to : mUniqueFocuses) {
+		auto evSub = subscribe(account, to, false);
+		if (evSub) {
+			accountEvs.push_back(evSub.value());
+		} else {
+			success = false;
 		}
 	}
-	rl.getList().push_back(l);
 
-	Xsd::XmlSchema::NamespaceInfomap map;
-	stringstream xmlBody;
-	serializeResourceLists(xmlBody, rl, map);
-	content->setBodyFromUtf8(xmlBody.str());
-
-	const int eventSubscribeExpire = linphone_config_get_int(linphone_core_get_config(getCore()->getCCore()), "sip",
-	                                                         "conference_subscribe_expires", 600);
-	auto evSub = dynamic_pointer_cast<EventSubscribe>(
-	    (new EventSubscribe(getCore(), factoryUri, "conference", eventSubscribeExpire))->toSharedPtr());
-	const auto &from = account->getContactAddress();
-	evSub->getOp()->setFromAddress(from->getImpl());
-	evSub->setInternal(true);
-	evSub->addCustomHeader("Require", "recipient-list-subscribe");
-	evSub->addCustomHeader("Accept", "multipart/related, application/conference-info+xml, application/rlmi+xml");
-	evSub->addCustomHeader("Content-Disposition", "recipient-list");
-	LinphoneCore *lc = getCore()->getCCore();
-	if (linphone_core_content_encoding_supported(lc, "deflate")) {
-		content->setContentEncoding("deflate");
-		evSub->addCustomHeader("Accept-Encoding", "deflate");
+	if (factoryUriIsValid) {
+		auto evSub = subscribe(account, *factoryUri, true);
+		if (evSub) {
+			accountEvs.push_back(evSub.value());
+		} else {
+			success = false;
+		}
 	}
-	evSub->setProperty("event-handler-private", this);
-	auto ret = evSub->send(content);
-	levs.push_back(evSub);
+	mEvents.insert_or_assign(*contactAddress, accountEvs);
 	startWaitNotifyTimer();
 
-	return (ret == 0);
+	return success;
 }
 
 void ClientConferenceListEventHandler::unsubscribe() {
-	for (auto &evSub : levs) {
-		evSub->terminate();
+	for (auto &[address, events] : mEvents) {
+		for (auto &event : events) {
+			event->terminate();
+		}
 	}
-	levs.clear();
+	for (const auto &handlers : {mHandlers, mLegacyChatRoomHandlers}) {
+		for (const auto &[key, handlerWkPtr] : handlers) {
+			try {
+				std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
+				handler->setEvent(nullptr);
+			} catch (...) {
+				// ignored
+			}
+		}
+	}
+	mEvents.clear();
 	stopWaitNotifyTimer();
 }
 
 void ClientConferenceListEventHandler::unsubscribe(const std::shared_ptr<Account> &account) {
-	if (!account || !account->getContactAddress()) return;
-	const auto &from = account->getContactAddress();
-	auto it = std::find_if(levs.begin(), levs.end(), [from](const auto &lev) { return (*lev->getFrom() == *from); });
-
-	if (it != levs.end()) {
-		shared_ptr<EventSubscribe> evSub = *it;
-		levs.erase(it);
-		evSub->terminate();
+	if (!account || !account->getAccountParams() || !account->getContactAddress()) return;
+	const auto &contactAddress = account->getContactAddress();
+	auto accountEvsOpt = findEvents(contactAddress);
+	if (accountEvsOpt) {
+		auto accountEvs = accountEvsOpt.value();
+		for (auto &ev : accountEvs) {
+			ev->terminate();
+		}
+		mEvents.erase(*contactAddress);
 	}
+	for (const auto &handlers : {mHandlers, mLegacyChatRoomHandlers}) {
+		for (const auto &[key, handlerWkPtr] : handlers) {
+			if (key.getLocalAddress()->weakEqual(*contactAddress)) {
+				try {
+					std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
+					handler->setEvent(nullptr);
+				} catch (...) {
+					// ignored
+				}
+			}
+		}
+	}
+
 	stopWaitNotifyTimer();
 }
 
-bool ClientConferenceListEventHandler::alreadySubscribed(const std::shared_ptr<Address> &address) const {
-	const auto &subscriptionState = getSubscriptionState(address);
+bool ClientConferenceListEventHandler::alreadySubscribed(const std::shared_ptr<Address> &address,
+                                                         const std::shared_ptr<Address> &peer) const {
+	const auto &subscriptionState = getSubscriptionState(address, peer);
 	return (subscriptionState == LinphoneSubscriptionActive) ||
 	       (subscriptionState == LinphoneSubscriptionOutgoingProgress);
 }
 
 LinphoneSubscriptionState
-ClientConferenceListEventHandler::getSubscriptionState(const std::shared_ptr<Address> &address) const {
+ClientConferenceListEventHandler::getSubscriptionState(const std::shared_ptr<Address> &address,
+                                                       const std::shared_ptr<Address> &peer) const {
 	auto state = LinphoneSubscriptionNone;
-	auto event = findEvent(address);
+	auto event = findEvent(address, peer);
 	if (event) {
-		state = event->getState();
+		state = event.value()->getState();
 	}
+	lInfo() << __func__ << " DEBUG DEBUG address " << *address << " peer " << *peer << " event " << event.has_value()
+	        << " state " << linphone_subscription_state_to_string(state);
 	return state;
 }
 
 void ClientConferenceListEventHandler::invalidateSubscription() {
-	levs.clear();
+	mEvents.clear();
 }
 
-void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> notifyLev,
+void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> notifyEv,
                                                       const std::shared_ptr<const Content> &notifyContent) {
 	stopWaitNotifyTimer();
+	auto needFullState = false;
 	if (notifyContent) {
-		const auto &from = notifyLev->getFrom();
 		auto core = getCore();
 		const auto conferenceIdParams = core->createConferenceIdParams();
-		auto event = findEvent(from);
-		const auto levFound = (event != nullptr);
+		auto event = findEvent(notifyEv);
+		const auto evFound = (event.has_value());
+		const auto &from = notifyEv->getFrom();
 		if (notifyContent->getContentType() == ContentType::ConferenceInfo) {
 			// Simple notify received directly from a chat-room
 			const string &xmlBody = notifyContent->getBodyAsUtf8String();
@@ -212,7 +366,7 @@ void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> not
 			try {
 				confInfo = Xsd::ConferenceInfo::parseConferenceInfo(data, Xsd::XmlSchema::Flags::dont_validate);
 			} catch (const exception &) {
-				lError() << "Error while parsing conference-info in conferences notify";
+				lError() << "Error while parsing conference-info in conferences notify of " << *notifyEv;
 				return;
 			}
 
@@ -221,18 +375,27 @@ void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> not
 			auto handler = findHandler(id);
 			if (!handler) return;
 
-			handler->notifyReceived(*notifyContent);
-			if (handler->getInitialSubscriptionUnderWayFlag()) {
-				handler->setInitialSubscriptionUnderWayFlag(!levFound);
+			needFullState = (handler->notifyReceived(*notifyContent) ==
+			                 ClientConferenceEventHandlerBase::NotifyParsingResult::NeedFullState);
+			if (!needFullState && handler->getInitialSubscriptionUnderWayFlag()) {
+				handler->setInitialSubscriptionUnderWayFlag(!evFound);
 			}
 		} else {
-			list<Content> contents = ContentManager::multipartToContentList(*notifyContent);
 			map<string, std::shared_ptr<Address>> addresses;
-			for (const auto &content : contents) {
-				const string &body = content.getBodyAsUtf8String();
+			list<Content> contents = ContentManager::multipartToContentList(*notifyContent);
+			auto rlmiIt = std::find_if(contents.begin(), contents.end(), [](const auto &content) {
 				const ContentType &contentType = content.getContentType();
-				if (contentType == ContentType::Rlmi) {
-					addresses = parseRlmi(body);
+				return (contentType == ContentType::Rlmi);
+			});
+			if (rlmiIt != contents.end()) {
+				auto rlmi = (*rlmiIt);
+				const string &body = rlmi.getBodyAsUtf8String();
+				addresses = parseRlmi(body);
+			}
+
+			for (const auto &content : contents) {
+				const ContentType &contentType = content.getContentType();
+				if ((contentType != ContentType::Multipart) && (contentType != ContentType::ConferenceInfo)) {
 					continue;
 				}
 
@@ -247,19 +410,33 @@ void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> not
 				auto handler = findHandler(id);
 				if (!handler) continue;
 
-				if (contentType == ContentType::Multipart) handler->multipartNotifyReceived(content);
-				else if (contentType == ContentType::ConferenceInfo) handler->notifyReceived(content);
+				auto result = ClientConferenceEventHandlerBase::NotifyParsingResult::Success;
+				if (contentType == ContentType::Multipart) result = handler->multipartNotifyReceived(content);
+				else if (contentType == ContentType::ConferenceInfo) result = handler->notifyReceived(content);
+				if (result == ClientConferenceEventHandlerBase::NotifyParsingResult::NeedFullState) {
+					needFullState = true;
+				}
 			}
 
-			// Remove subscription underway flag from all handlers matching the account that sent the subscription
-			for (const auto &[key, handlerWkPtr] : handlers) {
-				try {
-					std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
-					const ConferenceId &conferenceId = handler->getConferenceId();
-					if (from->weakEqual(*conferenceId.getLocalAddress())) {
-						handler->notifySubscriptionUnderwayDone();
-					}
-				} catch (const bad_weak_ptr &) {
+			if (needFullState) {
+				lInfo() << "At least one conference handled by " << *notifyEv
+				        << " needs a NOTIFY full state. Terminating it and reSUBSCRIBing";
+				notifyEv->terminate();
+				deleteEvent(notifyEv);
+				auto ev = subscribe(notifyEv, addresses);
+				if (ev) {
+					addEvent(ev.value());
+				} else {
+					lError() << "Unable to subscribe again to " << *notifyEv->getTo();
+				}
+			} else {
+				// Notify that a NOTIFY has been received to all handlers in the rlmi content, even those that have not
+				// received any updates
+				for (const auto &[instanceId, address] : addresses) {
+					ConferenceId id(address, from, conferenceIdParams);
+					auto handler = findHandler(id);
+					if (!handler) continue;
+					handler->notifySubscriptionUnderwayDone();
 				}
 			}
 		}
@@ -268,26 +445,101 @@ void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> not
 
 // -----------------------------------------------------------------------------
 
-const std::shared_ptr<EventSubscribe>
-ClientConferenceListEventHandler::findEvent(const std::shared_ptr<Address> &address) const {
-	// Ignore GRUU as the current one may not be the same as the one used to create the chatroom.
-	auto addressWithoutGruu = address->getUriWithoutGruu();
-	auto it = std::find_if(levs.begin(), levs.end(), [&addressWithoutGruu](const auto &lev) {
-		return addressWithoutGruu == Address(lev->getOp()->getFrom()).getUriWithoutGruu();
-	});
+std::optional<std::list<std::shared_ptr<EventSubscribe>>>
+ClientConferenceListEventHandler::findEvents(const std::shared_ptr<Address> &address) const {
+	try {
+		return mEvents.at(*address);
+	} catch (std::out_of_range &) {
+		return std::nullopt;
+	}
+}
 
-	if (it != levs.end()) return *it;
-	return nullptr;
+std::optional<std::shared_ptr<EventSubscribe>>
+ClientConferenceListEventHandler::findEvent(const std::shared_ptr<Address> &address,
+                                            const std::shared_ptr<Address> &resource) const {
+	std::list<std::shared_ptr<EventSubscribe>> accountEvs;
+	const auto eventsOpt = findEvents(address);
+	if (eventsOpt) {
+		const auto addressEvs = eventsOpt.value();
+		Address resourceNoGruu(resource->getUriWithoutGruu());
+		// Ignore GRUU as the current one may not be the same as the one used to create the chatroom.
+		auto it = std::find_if(addressEvs.begin(), addressEvs.end(), [&resourceNoGruu](const auto &ev) {
+			return ev->getResource()->getUriWithoutGruu() == resourceNoGruu;
+		});
+
+		if (it != addressEvs.end()) {
+			return *it;
+		}
+	}
+	return std::nullopt;
+}
+
+void ClientConferenceListEventHandler::deleteEvent(const std::shared_ptr<Event> &event) {
+	const auto &fromAddr = event->getFrom();
+	const auto eventsOpt = findEvents(fromAddr);
+	if (eventsOpt) {
+		const auto accountEvs = eventsOpt.value();
+		auto addressEvs = accountEvs;
+		auto it =
+		    std::find_if(addressEvs.begin(), addressEvs.end(), [callId = event->getOp()->getCallId()](const auto &ev) {
+			    return ev->getOp()->getCallId() == callId;
+		    });
+
+		if (it != addressEvs.end()) {
+			addressEvs.erase(it);
+			mEvents.insert_or_assign(*fromAddr, addressEvs);
+		}
+	}
+}
+
+void ClientConferenceListEventHandler::addEvent(const std::shared_ptr<EventSubscribe> &event) {
+	const auto &fromAddr = event->getFrom();
+	const auto eventsOpt = findEvents(fromAddr);
+	std::list<std::shared_ptr<EventSubscribe>> addressEvs;
+	if (eventsOpt) {
+		const auto accountEvs = eventsOpt.value();
+		addressEvs = accountEvs;
+	}
+	addressEvs.push_back(event);
+	mEvents.insert_or_assign(*fromAddr, addressEvs);
+}
+
+std::optional<std::shared_ptr<EventSubscribe>>
+ClientConferenceListEventHandler::findEvent(const std::shared_ptr<Event> &event) const {
+	const auto &fromAddr = event->getFrom();
+	const auto eventsOpt = findEvents(fromAddr);
+	if (eventsOpt) {
+		const auto addressEvs = eventsOpt.value();
+		auto it =
+		    std::find_if(addressEvs.begin(), addressEvs.end(), [callId = event->getOp()->getCallId()](const auto &ev) {
+			    return ev->getOp()->getCallId() == callId;
+		    });
+
+		if (it != addressEvs.end()) {
+			return *it;
+		}
+	}
+	return std::nullopt;
+}
+
+bool ClientConferenceListEventHandler::handlesEvent(const std::shared_ptr<Event> &event) const {
+	auto ev = findEvent(event);
+	if (ev) {
+		return ev.value() != nullptr;
+	}
+	return false;
 }
 
 std::shared_ptr<ClientConferenceEventHandler>
 ClientConferenceListEventHandler::findHandler(const ConferenceId &conferenceId) const {
-	const auto it = handlers.find(conferenceId);
-	if (it != handlers.end()) {
-		try {
-			const std::shared_ptr<ClientConferenceEventHandler> handler = (*it).second.lock();
-			return handler;
-		} catch (const bad_weak_ptr &) {
+	for (const auto &handlers : {mHandlers, mLegacyChatRoomHandlers}) {
+		auto it = handlers.find(conferenceId);
+		if (it != handlers.end()) {
+			try {
+				std::shared_ptr<ClientConferenceEventHandler> handler = (*it).second.lock();
+				return handler;
+			} catch (const bad_weak_ptr &) {
+			}
 		}
 	}
 	return nullptr;
@@ -305,42 +557,30 @@ void ClientConferenceListEventHandler::addHandler(std::shared_ptr<ClientConferen
 		return;
 	}
 
-	if (!isHandlerInSameDomainAsCore(conferenceId)) {
-		// lWarning() << "The chatroom with conference id " << conferenceId
-		//            << " is not in the same domain as the conference factory of the account is linked to hence not "
-		//               "adding to the list of subscribes";
-		return;
-	}
-
 	if (findHandler(conferenceId)) {
 		lWarning() << "Trying to insert an already present handler in the client conference handler list: "
 		           << conferenceId;
 		return;
 	}
-	handlers[conferenceId] = handler;
+
+	const auto &localAddress = conferenceId.getLocalAddress();
+	const auto &peerAddress = conferenceId.getPeerAddress();
+	bool hasConfIdParams = peerAddress->hasUriParam(Conference::sConfIdParameter);
+	if (hasConfIdParams) {
+		auto focusUri = peerAddress->getUriWithoutGruu();
+		focusUri.removeUriParam(Conference::sConfIdParameter);
+		mUniqueFocuses.insert(focusUri);
+		mHandlers.insert({conferenceId, handler});
+	} else {
+		const auto conferenceFactoryUri = Core::getConferenceFactoryAddress(getCore(), localAddress);
+		if (!conferenceFactoryUri || !conferenceFactoryUri->isValid()) {
+			lDebug() << "Account with local address [" << *localAddress << "] hasn't a conference factory URI defined.";
+			return;
+		}
+
+		mLegacyChatRoomHandlers.insert({conferenceId, handler});
+	}
 	handler->setManagedByListEventHandler(true);
-}
-
-bool ClientConferenceListEventHandler::isHandlerInSameDomainAsCore(const ConferenceId &conferenceId) const {
-	// Ensure that conference and conference factory are in the same domain
-	const std::shared_ptr<Address> &localAddress = conferenceId.getLocalAddress();
-
-	const auto conferenceFactoryUri = Core::getConferenceFactoryAddress(getCore(), localAddress);
-	if (!conferenceFactoryUri) {
-		lDebug() << "Account with local address [" << localAddress->getUri()
-		         << "] hasn't a conference factory URI defined.";
-		return false;
-	}
-
-	const std::shared_ptr<Address> &peerAddress = conferenceId.getPeerAddress();
-	if (peerAddress->getDomain() != conferenceFactoryUri->getDomain()) {
-		lDebug() << "Peer address [" << peerAddress->getUri()
-		         << "] is not in the same domain as the conference factory URI [" << conferenceFactoryUri->getUri()
-		         << "]";
-		return false;
-	}
-
-	return true;
 }
 
 void ClientConferenceListEventHandler::removeHandler(std::shared_ptr<ClientConferenceEventHandler> handler) {
@@ -354,16 +594,13 @@ void ClientConferenceListEventHandler::removeHandler(std::shared_ptr<ClientConfe
 		return;
 	}
 
-	if (!isHandlerInSameDomainAsCore(conferenceId)) {
-		lWarning() << "The chatroom with conference id " << conferenceId
-		           << " is not in the same domain as the conference factory of the account is linked to hence no need "
-		              "to remove it from the list of subscribes";
-		return;
-	}
-
+	const auto &peerAddress = conferenceId.getPeerAddress();
+	bool hasConfIdParams = peerAddress->hasUriParam(Conference::sConfIdParameter);
+	auto &handlers = (hasConfIdParams) ? mHandlers : mLegacyChatRoomHandlers;
 	auto it = handlers.find(conferenceId);
 	if (it != handlers.end()) {
 		handler->setManagedByListEventHandler(false);
+		handler->setEvent(nullptr);
 		handlers.erase(it);
 		lInfo() << "Client Conference Event Handler with conference id " << conferenceId << " [" << handler
 		        << "] has been removed.";
@@ -373,7 +610,8 @@ void ClientConferenceListEventHandler::removeHandler(std::shared_ptr<ClientConfe
 }
 
 void ClientConferenceListEventHandler::clearHandlers() {
-	handlers.clear();
+	mHandlers.clear();
+	mLegacyChatRoomHandlers.clear();
 }
 
 map<string, std::shared_ptr<Address>> ClientConferenceListEventHandler::parseRlmi(const string &xmlBody) const {
@@ -419,15 +657,14 @@ void ClientConferenceListEventHandler::onAccountRegistrationStateChanged(std::sh
                                                                          LinphoneRegistrationState state,
                                                                          BCTBX_UNUSED(const std::string &message)) {
 
-	const auto &accountParams = account->getAccountParams();
-	const auto &cfgAddress = accountParams->getIdentityAddress();
-	// Do not subscribe again is the moving from RegistrationOk or RegistrationPending to RegistrationOk
-	if ((state == LinphoneRegistrationOk) && !alreadySubscribed(cfgAddress)) {
-		subscribe(account);
+	lInfo() << __func__ << " DEBUG DEBUG ";
+	if (state == LinphoneRegistrationOk) {
+		// Do not subscribe again to focus the SDK has already a subscription for
+		subscribe(account, false);
 	} else if (state == LinphoneRegistrationCleared) { // On cleared, restart subscription if the cleared proxy config
 		                                               // is the current subscription
 		// If no subscription is found, then unsubscribe the account
-		if (findEvent(cfgAddress)) unsubscribe(account);
+		unsubscribe(account);
 	}
 }
 
@@ -441,12 +678,14 @@ void ClientConferenceListEventHandler::onEnteringForeground() {
 
 void ClientConferenceListEventHandler::onNotifyWaitExpired() {
 	// Remove subscription underway flag from all child handlers.
-	for (const auto &[key, handlerWkPtr] : handlers) {
-		try {
-			std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
-			handler->notifySubscriptionUnderwayDone();
-		} catch (...) {
-			// ignored
+	for (const auto &handlers : {mHandlers, mLegacyChatRoomHandlers}) {
+		for (const auto &[key, handlerWkPtr] : handlers) {
+			try {
+				std::shared_ptr<ClientConferenceEventHandler> handler(handlerWkPtr);
+				handler->notifySubscriptionUnderwayDone();
+			} catch (...) {
+				// ignored
+			}
 		}
 	}
 }
