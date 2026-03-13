@@ -407,10 +407,11 @@ void ClientChatRoom::chatMessageEarlyFailure(const shared_ptr<ChatMessage> &chat
 	chatMessage->getPrivate()->setParticipantState(getMe()->getAddress(), ChatMessage::State::NotDelivered,
 	                                               ::ms_time(nullptr));
 	const auto &storageId = chatMessage->getStorageId();
-	L_ASSERT(storageId >= 0);
-	if (auto db = getCore()->getDatabase()) {
-		shared_ptr<EventLog> eventLog = db.value().get().getEvent(storageId);
-		_linphone_chat_room_notify_message_early_failure(toC(), L_GET_C_BACK_PTR(eventLog));
+	if (storageId >= 0) {
+		if (auto db = getCore()->getDatabase()) {
+			shared_ptr<EventLog> eventLog = db.value().get().getEvent(storageId);
+			_linphone_chat_room_notify_message_early_failure(toC(), L_GET_C_BACK_PTR(eventLog));
+		}
 	}
 }
 
@@ -442,10 +443,10 @@ void ClientChatRoom::sendChatMessage(const shared_ptr<ChatMessage> &chatMessage)
 			} else if (encryptionEngine->participantListRequired()) {
 				LinphoneGlobalState coreGlobalState = linphone_core_get_global_state(getCore()->getCCore());
 				auto eventSubscribeState = LinphoneSubscriptionNone;
-				bool alreadySubscribed = false;
+				bool subscriptionUnderway = true;
 				if (eventHandler) {
-					alreadySubscribed = eventHandler->alreadySubscribed();
 					eventSubscribeState = eventHandler->getSubscriptionState();
+					subscriptionUnderway = eventHandler->getInitialSubscriptionUnderWayFlag();
 				}
 				bool coreRunning = (coreGlobalState == LinphoneGlobalOn);
 				if (!conference->supportsConferenceEventPackage()) {
@@ -463,14 +464,13 @@ void ClientChatRoom::sendChatMessage(const shared_ptr<ChatMessage> &chatMessage)
 					         << "]";
 					chatMessage->getPrivate()->setParticipantState(
 					    getMe()->getAddress(), ChatMessage::State::NotDelivered, ::ms_time(nullptr));
-				} else if (!alreadySubscribed) {
+				} else if (eventSubscribeState != LinphoneSubscriptionActive) {
 					lInfo() << *this << ": Delaying sending of message [" << chatMessage
-					        << "] in an encrypted chat room because no subscription has been sent yet";
+					        << "] in an encrypted chat room because subscription is not active yet";
 					queueMessage = true;
-				} else if (!alreadySubscribed || conference->getParticipantDevices().empty()) {
+				} else if (subscriptionUnderway) {
 					lInfo() << *this << ": Delaying sending of message [" << chatMessage
-					        << "] in an encrypted chat room because the list of participant devices has not been "
-					           "received yet "
+					        << "] in an encrypted chat room because the subscription is still underway "
 					           "and the encryption engine ["
 					        << encryptionEngine << "] requires it";
 					queueMessage = true;
@@ -508,9 +508,10 @@ bool ClientChatRoom::canSendMessages() const {
 	// participants. However, if the core is shutting down, the message should be sent anyway even though we are
 	// potentially send it to an incomplete list of devices
 	const auto &chatBackend = chatRoomParams->getChatParams()->getBackend();
+	const auto &isEncrypted = chatRoomParams->getChatParams()->isEncrypted();
 	bool subscriptionUnderway = false;
 	LinphoneGlobalState coreGlobalState = linphone_core_get_global_state(getCore()->getCCore());
-	bool coreShuttingDown = ((coreGlobalState == LinphoneGlobalOff) || (coreGlobalState == LinphoneGlobalShutdown));
+	bool coreOff = (coreGlobalState == LinphoneGlobalOff);
 	const auto conference = getConference();
 	if (conference) {
 		subscriptionUnderway = conference->isSubscriptionUnderWay();
@@ -518,13 +519,23 @@ bool ClientChatRoom::canSendMessages() const {
 	bool sendMessagesAfterNotify = !!linphone_core_send_message_after_notify_enabled(core->getCCore());
 	bool handlerAllowsMessageSending = sendMessagesAfterNotify ? !subscriptionUnderway : true;
 	// Chat message can be sent only after the subscription has been finalized and the first NOTIFY received
+	// For encrypted chat rooms, the participant list cannot be empty
 	bool canMessageBeSent =
-	    (handlerAllowsMessageSending && !coreShuttingDown && (chatBackend == ChatParams::Backend::FlexisipChat) &&
-	     (chatRoomState == ConferenceInterface::State::Created));
+	    (handlerAllowsMessageSending && !coreOff && (chatBackend == ChatParams::Backend::FlexisipChat) &&
+	     (chatRoomState == ConferenceInterface::State::Created) &&
+	     (!isEncrypted || !mConference->getParticipantDevices(false).empty()));
 	if (!canMessageBeSent) {
 		lInfo() << *conference << " cannot yet send messages: ";
-		lInfo() << " - the chat room is not in the created state (actual state " << Utils::toString(chatRoomState)
-		        << ")";
+		if (chatRoomState != ConferenceInterface::State::Created) {
+			lInfo() << " - the chat room is not in the created state (actual state " << Utils::toString(chatRoomState)
+			        << ")";
+		}
+		if (coreOff) {
+			lInfo() << " - the core is in state GlobalOff";
+		}
+		if (chatBackend != ChatParams::Backend::FlexisipChat) {
+			lInfo() << " - chat backend is not FlexisipChat";
+		}
 		if (sendMessagesAfterNotify) {
 			lInfo() << " - subscription is underway (actually subscription is"
 			        << std::string(subscriptionUnderway ? " " : " not ") << "underway)";
