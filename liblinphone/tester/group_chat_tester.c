@@ -7163,6 +7163,16 @@ static void exhume_one_on_one_chat_room_3_base(bool_t core_restart) {
 				BC_ASSERT_FALSE(
 				    wait_for_list(coresList, &pauline->stat.number_of_LinphoneChatRoomStateTerminated, 1, 5000));
 
+				paulineOneOnOneCr = linphone_core_get_chat_room(pauline->lc, exhumedConfAddr);
+
+				BC_ASSERT_TRUE(wait_for_list(coresList, &pauline->stat.number_of_LinphoneChatRoomSessionEnd,
+				                             initialPaulineStats.number_of_LinphoneChatRoomSessionEnd + 1,
+				                             liblinphone_tester_sip_timeout));
+
+				BC_ASSERT_TRUE(wait_for_list(coresList, &pauline->stat.number_of_LinphoneChatRoomSessionReleased,
+				                             initialPaulineStats.number_of_LinphoneChatRoomSessionReleased + 1,
+				                             liblinphone_tester_sip_timeout));
+
 				BC_ASSERT_EQUAL((int)linphone_chat_room_get_previouses_conference_ids_count(paulineOneOnOneCr), 0, int,
 				                "%d");
 			} else {
