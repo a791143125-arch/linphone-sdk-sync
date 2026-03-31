@@ -100,6 +100,7 @@ void MsScreenSharing::init() {
 	mLastFormat.mScreenIndex = screenIndex;
 	mLastFormat.mLastTimeSizeChanged = std::chrono::system_clock::now();
 	ms_video_init_framerate_controller(&mIdleFramerateController, 3.0);
+	ms_message("[MsScreenSharing] Initialized for %d", mSourceDesc.type);
 }
 
 void MsScreenSharing::uninit() {
@@ -367,6 +368,21 @@ void MsScreenSharing::feed(MSFilter *filter) {
 		mFrameLock.unlock();
 	}
 }
+
+bool MsScreenSharing::checkTimeFrameReached(std::chrono::time_point<std::chrono::system_clock> &lastTime,
+                                            long &lastCode,
+                                            long code,
+                                            const std::chrono::duration<int64_t> &timeFrame) {
+	auto currentTime = std::chrono::system_clock::now();
+	auto workTimeFrame = (currentTime - lastTime);
+	if (lastCode != code || workTimeFrame > timeFrame) {
+		lastTime = currentTime;
+		lastCode = code;
+		return true;
+	}
+	return false;
+}
+
 //------------------------------------------------------------------------------------------------------------
 //											C INTERFACE
 //------------------------------------------------------------------------------------------------------------
