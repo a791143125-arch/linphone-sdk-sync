@@ -301,7 +301,6 @@ set(SOURCE_FILES_C
 	session_timers_tester.c
 	setup_tester.c
 	shared_core_tester.c
-	stun_tester.c
 	tunnel_tester.c
 	video_quality_tester.c
 	video_tester.c
@@ -364,6 +363,7 @@ set(SOURCE_FILES_CXX
 	http-client-tester.cpp
 	http-server-utils.cpp
 	refer-tester.cpp
+	stun_tester.cpp
 )
 
 if(ENABLE_LIME_X3DH)

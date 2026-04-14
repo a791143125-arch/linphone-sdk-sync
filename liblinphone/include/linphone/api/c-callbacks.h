@@ -105,6 +105,16 @@ typedef void (*LinphoneAccountManagerServicesRequestCbsOnDevicesListFetchedCb)(
     const LinphoneAccountManagerServicesRequest *request, const bctbx_list_t *devices_list);
 
 /**
+ * Callback for notifying when a request has results available.
+ * @param request #LinphoneAccountManagerServicesRequest object. @notnil
+ * @param nat_policy A #LinphoneNatPolicy with Turn credentials. @notnil
+ * @param auth_info A #LinphoneAuthInfo with Turn credentials. @notnil
+ */
+typedef void (*LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb)(
+	const LinphoneAccountManagerServicesRequest *request, const LinphoneNatPolicy *nat_policy, const LinphoneAuthInfo *auth_info);
+
+
+/**
  * @}
  **/
 

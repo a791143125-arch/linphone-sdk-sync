@@ -93,6 +93,10 @@ shared_ptr<AccountManagerServicesRequest> AccountManagerServices::createRequest(
 			path = string("accounts/me/devices/" + params["device_uuid"].asString());
 			httpType = "DELETE";
 			break;
+		case LinphoneAccountManagerServicesRequestTypeGetTurnCredentials:
+			path = "accounts/me/services/turn";
+			httpType = "GET";
+			break;
 		case LinphoneAccountManagerServicesRequestTypeGetCreationTokenAsAdmin:
 			path = "account_creation_tokens";
 			break;
@@ -266,6 +270,16 @@ AccountManagerServices::createDeleteDeviceRequest(const shared_ptr<const Address
 	params["device_uuid"] = device->getUUID();
 
 	return createRequest(type, params, identity);
+}
+
+// =============================================================================
+
+shared_ptr<AccountManagerServicesRequest> AccountManagerServices::createGetTurnCredentialsRequest(const shared_ptr<const Address> &sipIdentity) {
+	string identity = sipIdentity->asStringUriOnly();
+	LinphoneAccountManagerServicesRequestType type = LinphoneAccountManagerServicesRequestTypeGetTurnCredentials;
+	lDebug() << "[Account Manager Services] Calling [" << __func__ << "](" << identity << ")";
+	Json::Value params;
+	return createRequest(type,params, identity);
 }
 
 // =============================================================================

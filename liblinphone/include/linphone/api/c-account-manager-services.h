@@ -210,6 +210,16 @@ linphone_account_manager_services_create_get_devices_list_request(LinphoneAccoun
                                                                   const LinphoneAddress *sip_identity);
 
 /**
+ * Requests the credentials of TURN.
+ * @param ams The #LinphoneAccountManagerServices object. @notnil
+ * @param sip_identity the SIP identity URI that identifies the account to which you want to link credentials to.
+ * @notnil
+ * @return the #LinphoneAccountManagerServicesRequest request object. @notnil
+ */
+LINPHONE_PUBLIC LinphoneAccountManagerServicesRequest *
+linphone_account_manager_services_create_get_turn_credentials_request(LinphoneAccountManagerServices *ams,
+                                                                      const LinphoneAddress *sip_identity);
+/**
  * Requests to delete a device from the list of currently known devices.
  * @param ams The #LinphoneAccountManagerServices object. @notnil
  * @param sip_identity the SIP identity URI that identifies your account for which you want the devices list. @notnil

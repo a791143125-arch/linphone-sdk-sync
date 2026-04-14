@@ -23,6 +23,7 @@
 #include "dictionary/dictionary.h"
 #include "linphone/api/c-account-manager-services-request-cbs.h"
 #include "linphone/enums/c-enums.h"
+#include "nat/nat-policy.h"
 
 // =============================================================================
 
@@ -124,6 +125,15 @@ void AccountManagerServicesRequestCbs::setDevicesListFetched(
 	mDevicesListFetchedCb = cb;
 }
 
+LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb
+AccountManagerServicesRequestCbs::getTurnCredentialsFetched() const {
+	return mturnCredentialsFetchedCb;
+}
+
+void AccountManagerServicesRequestCbs::setTurnCredentialsFetched(LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb cb) {
+	mturnCredentialsFetchedCb = cb;
+}
+
 // =============================================================================
 
 string AccountManagerServicesRequest::requestTypeToString(LinphoneAccountManagerServicesRequestType type) {
@@ -150,6 +160,8 @@ string AccountManagerServicesRequest::requestTypeToString(LinphoneAccountManager
 			return "GetDevicesList";
 		case LinphoneAccountManagerServicesRequestTypeDeleteDevice:
 			return "DeleteDevice";
+		case LinphoneAccountManagerServicesRequestTypeGetTurnCredentials:
+			return "GetTurnCredentials";
 		case LinphoneAccountManagerServicesRequestTypeGetCreationTokenAsAdmin:
 			return "GetCreationTokenAsAdmin";
 		case LinphoneAccountManagerServicesRequestTypeGetAccountInfoAsAdmin:
@@ -278,6 +290,13 @@ void AccountManagerServicesRequest::handleSuccess(const HttpResponse &response) 
 			LINPHONE_HYBRID_OBJECT_INVOKE_CBS(AccountManagerServicesRequest, this,
 			                                  linphone_account_manager_services_request_cbs_get_devices_list_fetched,
 			                                  mDevicesList.getCList());
+		}
+	}else if (mType == LinphoneAccountManagerServicesRequestTypeGetTurnCredentials) {
+		std::shared_ptr<NatPolicy> natPolicy;
+		std::shared_ptr<AuthInfo> authInfo;
+		if (NatPolicy::parseJsonConfigurationResponse(response, getCore(), natPolicy, authInfo) == NatPolicy::SUCCESS) {
+			LINPHONE_HYBRID_OBJECT_INVOKE_CBS(AccountManagerServicesRequest, this,
+											  linphone_account_manager_services_request_cbs_get_turn_credentials_fetched, natPolicy->toC(), authInfo->toC());
 		}
 	}
 

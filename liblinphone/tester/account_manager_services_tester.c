@@ -34,6 +34,8 @@ typedef struct _LinphoneAccountManagerServicesStats {
 	char *data;
 	size_t devices_count;
 	LinphoneAccountDevice *device;
+	LinphoneNatPolicy *turn_credentials_policy;
+	LinphoneAuthInfo *turn_credentials_config;
 } LinphoneAccountManagerServicesStats;
 
 static const int TIMEOUT_REQUEST = 3000;
@@ -91,6 +93,72 @@ static void account_manager_services_request_on_error(const LinphoneAccountManag
 
 	stats->error_request_count += 1;
 	stats->request_result_received += 1;
+}
+
+static void
+account_manager_services_request_on_turn_credentials_fetched(const LinphoneAccountManagerServicesRequest *request,
+                                                             const LinphoneNatPolicy *nat_policy,
+                                                             const LinphoneAuthInfo *turn_configuration) {
+	ms_message("Request turn credentials fetched");
+
+	LinphoneAccountManagerServicesRequestCbs *cbs =
+	    linphone_account_manager_services_request_get_current_callbacks(request);
+	LinphoneAccountManagerServicesStats *stats =
+	    (LinphoneAccountManagerServicesStats *)linphone_account_manager_services_request_cbs_get_user_data(cbs);
+
+	if (stats->turn_credentials_policy) linphone_nat_policy_unref(stats->turn_credentials_policy);
+	stats->turn_credentials_policy = linphone_nat_policy_clone(nat_policy);
+	if (stats->turn_credentials_config) linphone_auth_info_unref(stats->turn_credentials_config);
+	stats->turn_credentials_config = linphone_auth_info_clone(turn_configuration);
+}
+
+// nat_policy @tobefreed
+// turn_config @tobefreed
+void account_manager_services_get_turn_credentials(LinphoneCoreManager *manager,
+                                                   LinphoneNatPolicy **nat_policy,
+                                                   LinphoneAuthInfo **turn_config) {
+	LinphoneAccountManagerServices *ams = linphone_core_create_account_manager_services(manager->lc);
+	LinphoneAccountManagerServicesRequestCbs *cbs =
+	    linphone_factory_create_account_manager_services_request_cbs(linphone_factory_get());
+
+	LinphoneAccountManagerServicesStats *stats =
+	    (LinphoneAccountManagerServicesStats *)ms_new0(LinphoneAccountManagerServicesStats, 1);
+	linphone_account_manager_services_request_cbs_set_user_data(cbs, stats);
+
+	linphone_account_manager_services_request_cbs_set_request_successful(cbs,
+	                                                                     account_manager_services_request_on_success);
+	linphone_account_manager_services_request_cbs_set_request_error(cbs, account_manager_services_request_on_error);
+	linphone_account_manager_services_request_cbs_set_turn_credentials_fetched(
+	    cbs, account_manager_services_request_on_turn_credentials_fetched);
+	int request_count = 1;
+	LinphoneAddress *normalized_address = linphone_address_clone(manager->identity);
+	linphone_address_set_secure(normalized_address, false);
+	LinphoneAccountManagerServicesRequest *request =
+	    linphone_account_manager_services_create_get_turn_credentials_request(ams, normalized_address);
+	linphone_address_unref(normalized_address);
+	BC_ASSERT_PTR_NOT_NULL(request);
+	linphone_account_manager_services_request_add_callbacks(request, cbs);
+	linphone_account_manager_services_request_submit(request);
+
+	wait_for_until(manager->lc, NULL, &stats->request_result_received, request_count, TIMEOUT_REQUEST);
+	BC_ASSERT_EQUAL(stats->success_request_count, request_count, int, "%d");
+	BC_ASSERT_EQUAL(stats->error_request_count, 0, int, "%d");
+	linphone_account_manager_services_request_unref(request);
+
+	BC_ASSERT_PTR_NOT_NULL(stats->turn_credentials_policy);
+	BC_ASSERT_PTR_NOT_NULL(stats->turn_credentials_config);
+	// Check if fields are present
+	BC_ASSERT_PTR_NOT_NULL(linphone_nat_policy_get_stun_server_username(stats->turn_credentials_policy));
+	BC_ASSERT_PTR_NOT_NULL(linphone_nat_policy_get_stun_server(stats->turn_credentials_policy));
+	BC_ASSERT_PTR_NOT_NULL(linphone_auth_info_get_password(stats->turn_credentials_config));
+
+	// Give ref to caller before cleaning memory
+	if (stats->turn_credentials_policy) *nat_policy = stats->turn_credentials_policy;
+	if (stats->turn_credentials_config) *turn_config = stats->turn_credentials_config;
+	if (stats->data) ms_free(stats->data);
+	ms_free(stats);
+	linphone_account_manager_services_request_cbs_unref(cbs);
+	linphone_account_manager_services_unref(ams);
 }
 
 // =============================================================================
@@ -583,6 +651,20 @@ static void account_devices_list_without_user_agent(void) {
 	account_devices_list(FALSE);
 }
 
+static void turn_credentials(void) {
+	LinphoneCoreManager *manager = linphone_core_manager_create("account_creator_flexiapi_rc");
+
+	linphone_core_manager_start(manager, TRUE);
+	LinphoneNatPolicy *nat_policy = NULL;
+	;
+	LinphoneAuthInfo *config = NULL;
+	account_manager_services_get_turn_credentials(manager, &nat_policy, &config);
+
+	if (nat_policy) linphone_nat_policy_unref(nat_policy);
+	if (config) linphone_auth_info_unref(config);
+	linphone_core_manager_destroy(manager);
+}
+
 // =============================================================================
 
 test_t account_manager_services_tests[] = {
@@ -595,7 +677,7 @@ test_t account_manager_services_tests[] = {
     TEST_NO_TAG("Mobile - Create account & activate using phone number", mobile_create_account_active_using_sms_code),
     TEST_NO_TAG("Devices list with user-agent", account_devices_list_with_user_agent),
     TEST_NO_TAG("Devices list without user-agent", account_devices_list_without_user_agent),
-};
+    TEST_NO_TAG("Turn credentials", turn_credentials)};
 
 test_suite_t account_manager_services_test_suite = {"Account Manager Services",
                                                     NULL,

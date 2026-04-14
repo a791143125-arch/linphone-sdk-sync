@@ -119,6 +119,24 @@ LINPHONE_PUBLIC void linphone_account_manager_services_request_cbs_set_devices_l
     LinphoneAccountManagerServicesRequestCbs *cbs, LinphoneAccountManagerServicesRequestCbsOnDevicesListFetchedCb cb);
 
 /**
+ * Gets the turn credentials fetched callback.
+ * @param cbs #LinphoneAccountManagerServicesRequestCbs object. @notnil
+ * @return The current turn credentials fetched callback.
+*/
+LINPHONE_PUBLIC LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb
+linphone_account_manager_services_request_cbs_get_turn_credentials_fetched(
+	const LinphoneAccountManagerServicesRequestCbs *cbs);
+
+/**
+ * Sets the turn credentials fetched callback.
+ * @param cbs #LinphoneAccountManagerServicesRequestCbs object. @notnil
+ * @param cb The turn credentials fetched callback to be used.
+ */
+LINPHONE_PUBLIC void linphone_account_manager_services_request_cbs_set_turn_credentials_fetched(
+	LinphoneAccountManagerServicesRequestCbs *cbs, LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb cb);
+
+
+/**
  * @}
  */
 

@@ -102,11 +102,13 @@ public:
 	void setRequestError(LinphoneAccountManagerServicesRequestCbsOnRequestErrorCb cb);
 	LinphoneAccountManagerServicesRequestCbsOnDevicesListFetchedCb getDevicesListFetched() const;
 	void setDevicesListFetched(LinphoneAccountManagerServicesRequestCbsOnDevicesListFetchedCb cb);
-
+	LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb getTurnCredentialsFetched() const;
+	void setTurnCredentialsFetched(LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb cb);
 private:
 	LinphoneAccountManagerServicesRequestCbsOnSuccessfulRequestCb mRequestSuccessfulCb = nullptr;
 	LinphoneAccountManagerServicesRequestCbsOnRequestErrorCb mRequestErrorCb = nullptr;
 	LinphoneAccountManagerServicesRequestCbsOnDevicesListFetchedCb mDevicesListFetchedCb = nullptr;
+	LinphoneAccountManagerServicesRequestCbsOnTurnCredentialsFetchedCb mturnCredentialsFetchedCb = nullptr;
 };
 
 LINPHONE_END_NAMESPACE
