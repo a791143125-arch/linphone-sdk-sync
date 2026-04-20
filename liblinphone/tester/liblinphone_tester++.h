@@ -303,5 +303,38 @@ private:
 #endif                                         // HAVE_LIME_X3DH
 };
 
+// enum the different methods for the client to retrieve the certificate
+enum class certProvider {
+	config_sip = 0,              /**< in the sip section (client_cert_chain and client_cert_key) of the config file */
+	config_auth_info_buffer = 1, /**< in a dedicated auth_info section of the configuration file, set cert and key in a
+	                                buffer -> they won't be written in the core config file */
+	config_auth_info_path = 2, /**< in a dedicated auth_info section of the configuration file, set path to cert and key
+	                              -> these will be written in the core config file */
+	callback =
+	    3 /**< using a callback adding auth_info into the core :
+	NOT IMPLEMENTED, Client certificate for lime user identification shall already be accessible to the core as
+   user register to the flexisip server before. THIS IS NOT DONE THIS WAY IN THE TESTS SUITES : user register on
+   flexisip user http digest and tls cert on lime server for test purpose, it is very unlikely to proceed this way*/
+};
+
+/**
+ * Create an account and set it as default in the given lc
+ * also add its credentials in auth_info
+ */
+void add_user_to_core_config(LinphoneCore *lc,
+                             const char *identity,
+                             const char *username,
+                             const char *realm,
+                             const char *server,
+                             const char *password);
+/**
+ * Add client certificate to the auth info or core config according the to certProvider method choosen
+ */
+void add_tls_client_certificate(LinphoneCore *lc,
+                                const std::string &username,
+                                const std::string &realm,
+                                const std::string &cert,
+                                const std::string &key,
+                                const certProvider method);
 } // namespace Tester
 } // namespace Linphone

@@ -113,6 +113,8 @@ bctoolbox will fail to compile if these values are not in sync with the decaf on
 #define BCTBX_ERROR_NET_WANT_READ -0x70032000
 #define BCTBX_ERROR_NET_WANT_WRITE -0x70034000
 #define BCTBX_ERROR_SSL_PEER_CLOSE_NOTIFY -0x70038000
+#define BCTBX_ERROR_CERT_VERIFY_FAILED -0x70039000
+#define BCTBX_ERROR_FATAL_ALERT_MSG -0x7003a000
 
 /* Symmetric ciphers related */
 #define BCTBX_ERROR_AUTHENTICATION_FAILED -0x70040000
@@ -433,6 +435,15 @@ BCTBX_PUBLIC int32_t bctbx_x509_certificate_get_subject_dn(const bctbx_x509_cert
  * @return a list of allocated strings (char*), to be freed with bctbx_free()
  */
 BCTBX_PUBLIC bctbx_list_t *bctbx_x509_certificate_get_subjects(const bctbx_x509_certificate_t *cert);
+
+/**
+ * Check if the given certificate has a SAN or CN
+ * @param certificate	the certificate chain to look into, only the top certificate is explored
+ * @param subject	the subject to match
+ * @return TRUE when the given certificate has a SAN or CN matching the given subject, false otherwise
+ */
+BCTBX_PUBLIC bool_t bctbx_x509_certificate_subject_match(const bctbx_x509_certificate_t *certificate,
+                                                         const char *subject);
 
 /**
  * @brief Generate certificate fingerprint (hash of the DER format certificate) hexadecimal format in a null terminated

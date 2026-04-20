@@ -69,7 +69,19 @@ void bctbx_strerror(int32_t error_code, char *buffer, size_t buffer_length) {
 		return;
 	}
 
-	snprintf(buffer, buffer_length, "%s [-0x%x]", "bctoolbox defined error code", -error_code);
+	switch (error_code) {
+		case BCTBX_ERROR_CERT_VERIFY_FAILED:
+			snprintf(buffer, buffer_length, "%s [-0x%x]", "Certificate verification failed", -error_code);
+			break;
+		case BCTBX_ERROR_FATAL_ALERT_MSG:
+			snprintf(buffer, buffer_length, "%s [-0x%x]", "Fatal alert message from peer during (D)TLS handshake",
+			         -error_code);
+			break;
+		default:
+			snprintf(buffer, buffer_length, "%s [-0x%x]", "bctoolbox defined error code", -error_code);
+			break;
+	}
+
 	return;
 }
 
@@ -939,6 +951,10 @@ int32_t bctbx_ssl_handshake(bctbx_ssl_context_t *ssl_ctx) {
 		ret = BCTBX_ERROR_NET_WANT_READ;
 	} else if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
 		ret = BCTBX_ERROR_NET_WANT_WRITE;
+	} else if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED) {
+		ret = BCTBX_ERROR_CERT_VERIFY_FAILED;
+	} else if (ret == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
+		ret = BCTBX_ERROR_FATAL_ALERT_MSG;
 	}
 
 	return (ret);
