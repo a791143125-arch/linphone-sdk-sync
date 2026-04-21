@@ -88,6 +88,9 @@ public:
 	stats &getStats() const {
 		return mMgr->stat;
 	}
+	LinphoneCoreManager *getCMgr() {
+		return mMgr.get();
+	}
 
 	// Wrapped methods
 	bool callWithSASvalidation(CoreManager &other) {

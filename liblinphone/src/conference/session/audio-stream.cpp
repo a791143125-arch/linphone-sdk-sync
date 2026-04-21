@@ -953,6 +953,8 @@ bool MS2AudioStream::startRecording() {
 		return false;
 	}
 	if (media_stream_get_state(&mStream->ms) == MSStreamStarted) {
+		VideoStream *vs = getPeerVideoStream();
+		if (vs) audio_stream_link_video(mStream, vs);
 		if (audio_stream_mixed_record_start(mStream) != -1) {
 			mRecordActive = true;
 			return true;

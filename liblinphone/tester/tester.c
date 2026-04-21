@@ -656,15 +656,15 @@ void linphone_core_manager_configure(LinphoneCoreManager *mgr) {
 
 	linphone_core_set_play_file(mgr->lc, hellopath); /*is also used when in pause*/
 	ms_free(hellopath);
-
-	if (manager_count >= 2) {
-		char *recordpath = ms_strdup_printf("%s/record_for_lc_%p.wav", bc_tester_get_writable_dir_prefix(), mgr->lc);
-		ms_message("Manager for '%s' using files", mgr->rc_path ? mgr->rc_path : "--");
-		linphone_core_set_use_files(mgr->lc, TRUE);
-		linphone_core_set_record_file(mgr->lc, recordpath);
-		ms_free(recordpath);
-	}
-
+	/*
+	    if (manager_count >= 2) {
+	        char *recordpath = ms_strdup_printf("%s/record_for_lc_%p.wav", bc_tester_get_writable_dir_prefix(),
+	   mgr->lc); ms_message("Manager for '%s' using files", mgr->rc_path ? mgr->rc_path : "--");
+	        linphone_core_set_use_files(mgr->lc, TRUE);
+	        linphone_core_set_record_file(mgr->lc, recordpath);
+	        ms_free(recordpath);
+	    }
+	*/
 	linphone_core_set_user_certificates_path(mgr->lc, bc_tester_get_writable_dir_prefix());
 	/*for now, we need the periodical updates facility to compute bandwidth measurements correctly during tests*/
 	linphone_core_enable_send_call_stats_periodical_updates(mgr->lc, TRUE);

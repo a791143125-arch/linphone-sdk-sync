@@ -1203,6 +1203,13 @@ void ogl_destroy_window(EGLNativeWindowType *window, void **window_id) {
 		}
 	}
 }
+void setWindowTitle(void *window, const char *title) {
+	if (window) {
+		auto dpy = XOpenDisplay(NULL);
+		XStoreName(dpy, *(EGLNativeWindowType *)window, title);
+		XFlush(dpy);
+	}
+}
 #elif defined(MS2_WINDOWS_UWP)
 
 #include <Memorybuffer.h>

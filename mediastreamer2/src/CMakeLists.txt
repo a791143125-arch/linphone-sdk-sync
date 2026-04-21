@@ -406,10 +406,11 @@ if(ENABLE_VIDEO)
 		list(APPEND VOIP_SOURCE_FILES_C
 			utils/opengl_functions.c
 			utils/shader_util.c
-			videofilters/generic_opengl_display.c
+
 		)
 		list(APPEND VOIP_SOURCE_FILES_CXX
 			utils/opengles_display.cpp
+				videofilters/generic_opengl_display.c
 		)
 	endif()
 	if(OpenGL_GLX_FOUND)
