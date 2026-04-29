@@ -1255,13 +1255,13 @@ static bool_t setup_dtls_srtp(LinphoneCoreManager *marie, LinphoneCoreManager *p
 	linphone_core_set_media_encryption(marie->lc, LinphoneMediaEncryptionDTLS);
 	linphone_core_set_media_encryption(pauline->lc, LinphoneMediaEncryptionDTLS);
 	char *path = bc_tester_file("certificates-marie");
+	std::filesystem::create_directories(path);
 	linphone_core_set_user_certificates_path(marie->lc, path);
 	bc_free(path);
 	path = bc_tester_file("certificates-pauline");
 	linphone_core_set_user_certificates_path(pauline->lc, path);
+	std::filesystem::create_directories(path);
 	bc_free(path);
-	bctbx_mkdir(linphone_core_get_user_certificates_path(marie->lc));
-	bctbx_mkdir(linphone_core_get_user_certificates_path(pauline->lc));
 	return TRUE;
 }
 
@@ -1384,6 +1384,7 @@ static void dtls_srtp_call_with_missing_client_certificate(void) {
 	}
 
 	auto initial_marie_stats = marie->stat;
+	auto initial_pauline_stats = pauline->stat;
 
 	linphone_core_invite_address(marie->lc, pauline->identity);
 	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallOutgoingRinging, 1));
@@ -1398,9 +1399,26 @@ static void dtls_srtp_call_with_missing_client_certificate(void) {
 		// wait 4 seconds so if it worked it would have enough time
 		BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallEncryptedOn,
 		                               initial_marie_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
-
 		BC_ASSERT_FALSE(isCurrentCallUsingDtls(marie));
-		// Do not check Pauline side as it could work if the SSL fatal alert from marie is lost
+		LinphoneCallStats *marie_stats = linphone_call_get_audio_stats(marie_call);
+		BC_ASSERT_TRUE(linphone_call_stats_get_srtp_source(marie_stats) == LinphoneMediaEncryptionFail);
+		BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(marie_stats) ==
+		               LinphoneMediaEncryptionErrorDtlsCertificateVerificationFail);
+		linphone_call_stats_unref(marie_stats);
+
+		// For Pauline this test may fail as Marie will send an DTLS fatal alert to Pauline but it is not repeated, so
+		// Pauline may never receive it if this test fails too much, comment the following code
+		BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallEncryptedOn,
+		                               initial_pauline_stats.number_of_LinphoneCallEncryptedOn + 1, 1000));
+		BC_ASSERT_FALSE(isCurrentCallUsingDtls(pauline));
+		LinphoneCallStats *pauline_stats = linphone_call_get_audio_stats(linphone_core_get_current_call(pauline->lc));
+		BC_ASSERT_TRUE(linphone_call_stats_get_srtp_source(marie_stats) == LinphoneMediaEncryptionFail);
+		// Pauline has no details on why the handshake failed
+		BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(marie_stats) ==
+		               LinphoneMediaEncryptionErrorDtlsHandshakeFail);
+		linphone_call_stats_unref(pauline_stats);
+		// end of part to be commented in case of too much failure
+
 		end_call(marie, pauline);
 	} else {
 		BC_FAIL("Cannot complete call");
@@ -1447,11 +1465,11 @@ static void dtls_srtp_call_with_unmatching_client_certificates(void) {
 	}
 	// set pauline user certificate path to a dedicated one to avoid concurrency problem
 	char *path = bc_tester_file("certificates-pauline-fake-id");
+	std::filesystem::create_directories(path);
 	linphone_core_set_user_certificates_path(pauline->lc, path);
 	bc_free(path);
 
 	auto initial_marie_stats = marie->stat;
-	auto initial_pauline_stats = pauline->stat;
 
 	auto valid_cert_file_default_identity =
 	    std::string(bc_tester_get_resource_dir_prefix())
@@ -1475,15 +1493,36 @@ static void dtls_srtp_call_with_unmatching_client_certificates(void) {
 	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallStreamsRunning, 1));
 
 	LinphoneCall *marie_call = linphone_core_get_current_call(marie->lc);
+
 	if (marie_call) {
-		// Check we are encrypted using DTLS: Ok for Pauline but not for Marie as Pauline use a valid but not matching
+		// Check we are encrypted using DTLS: not ok for Marie as Pauline use a valid but not matching
 		// certificate
 		BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallEncryptedOn,
 		                               initial_marie_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
-		BC_ASSERT_TRUE(wait_for_until(pauline->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallEncryptedOn,
-		                              initial_pauline_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
 		BC_ASSERT_FALSE(isCurrentCallUsingDtls(marie));
-		BC_ASSERT_TRUE(isCurrentCallUsingDtls(pauline));
+		LinphoneCallStats *marie_stats = linphone_call_get_audio_stats(marie_call);
+		BC_ASSERT_TRUE(linphone_call_stats_get_srtp_source(marie_stats) == LinphoneMediaEncryptionFail);
+		BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(marie_stats) ==
+		               LinphoneMediaEncryptionErrorDtlsCertificateSubjectMismatch);
+		linphone_call_stats_unref(marie_stats);
+
+		// For Pauline the test may fail as Marie will send an DTLS fatal alert to Pauline but it is not repeated, so
+		// Pauline may never receive it Do not test for Pauline encrypted call on as she can notify the encryption is on
+		// (raising the count) but then receive the alert from Marie
+		// BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallEncryptedOn,
+		//                              initial_pauline_stats.number_of_LinphoneCallEncryptedOn + 1, 1000));
+		if (bctbx_ssl_get_implementation_type() !=
+		    BCTBX_OPENSSL) { // openssl implementation won't send an alert but just hang on the DTLS connection
+			                 // Pauline will not notice it as the SRTP keys are already extracted for her
+			BC_ASSERT_FALSE(isCurrentCallUsingDtls(pauline));
+			LinphoneCallStats *pauline_stats =
+			    linphone_call_get_audio_stats(linphone_core_get_current_call(pauline->lc));
+			BC_ASSERT_TRUE(linphone_call_stats_get_srtp_source(pauline_stats) == LinphoneMediaEncryptionFail);
+			// Pauline has no details on why the handshake failed
+			BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(pauline_stats) ==
+			               LinphoneMediaEncryptionErrorDtlsHandshakeFail);
+			linphone_call_stats_unref(pauline_stats);
+		}
 		end_call(marie, pauline);
 	} else {
 		BC_FAIL("Cannot complete call");

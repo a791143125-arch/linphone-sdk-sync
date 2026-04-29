@@ -31,6 +31,14 @@ extern "C" {
 /* defined in mediastream.h */
 struct _MSMediaStreamSessions;
 
+typedef enum _MSDtlsError {
+	MS_DTLS_ERROR_NONE,
+	MS_DTLS_ERROR_CERT_VERIFY_FAIL,
+	MS_DTLS_ERROR_CERT_SUBJECT_UNMATCHING,
+	MS_DTLS_ERROR_HANDSHAKE_FAIL_TO_GENERATE_SRTP_KEYS,
+	MS_DTLS_ERROR_HANDSHAKE_FAIL_FATAL_ALERT,
+} MSDtlsError;
+
 typedef enum {
 	MSDtlsSrtpRoleInvalid,
 	MSDtlsSrtpRoleIsServer,

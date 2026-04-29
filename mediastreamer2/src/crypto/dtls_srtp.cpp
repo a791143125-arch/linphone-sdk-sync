@@ -114,8 +114,9 @@ struct _MSDtlsSrtpContext {
 	void start();
 	void createSslContext();
 	void setRole(MSDtlsSrtpRole role);
-	void setChannelStatus(DtlsStatus status);
+	void setChannelStatus(DtlsStatus status, MSDtlsError error = MS_DTLS_ERROR_NONE);
 	void setKeyMaterial();
+	void resetKeyMaterial();
 	int processDtlsPacket(mblk_t *msg);
 };
 
@@ -365,6 +366,12 @@ int ms_dtls_srtp_rtp_process_on_receive(struct _RtpTransportModifier *t, mblk_t 
 	}
 	/* process it */
 	int ret = ctx->processDtlsPacket(msg);
+	if (ret == BCTBX_ERROR_FATAL_ALERT_MSG) {
+		/* something went wrong with the handshake - abort */
+		ctx->resetKeyMaterial();
+		ctx->setChannelStatus(DtlsStatus::HandshakeFailed, MS_DTLS_ERROR_HANDSHAKE_FAIL_FATAL_ALERT);
+		return 0;
+	}
 	if (ctx->mChannelStatus == DtlsStatus::HandshakeOngoing) {
 		if (ret == 0) {                       /* handshake is over, give the keys to srtp : 128 bits client write - 128
 			                                                        bits server write - 112 bits client salt - 112 server salt */
@@ -381,13 +388,15 @@ int ms_dtls_srtp_rtp_process_on_receive(struct _RtpTransportModifier *t, mblk_t 
 						    "DTLS SRTP handshake successful but peer certificate does not hold a SAN or CN matchings "
 						    "its sip:uri %s",
 						    ctx->mPeerUri.c_str());
-						ctx->setChannelStatus(DtlsStatus::HandshakeFailed);
+						bctbx_ssl_send_fatal_alert_message(ctx->mDtlsCryptoContext.ssl, BCTBX_TLS_ALERT_ACCESS_DENIED);
+						ctx->setChannelStatus(DtlsStatus::HandshakeFailed, MS_DTLS_ERROR_CERT_SUBJECT_UNMATCHING);
 						return 0;
 					}
 				} else { // certificate Ok but we didn't get any peer uri to match it
 					ms_error("DTLS SRTP handshake successful but we did not get any peer uri to verify the certificate "
 					         "subject match");
-					ctx->setChannelStatus(DtlsStatus::HandshakeFailed);
+					bctbx_ssl_send_fatal_alert_message(ctx->mDtlsCryptoContext.ssl, BCTBX_TLS_ALERT_ACCESS_DENIED);
+					ctx->setChannelStatus(DtlsStatus::HandshakeFailed, MS_DTLS_ERROR_CERT_SUBJECT_UNMATCHING);
 					return 0;
 				}
 			}
@@ -398,7 +407,7 @@ int ms_dtls_srtp_rtp_process_on_receive(struct _RtpTransportModifier *t, mblk_t 
 			ctx->mSrtpProtectionProfile = ms_dtls_srtp_bctbx_protection_profile_to_ms_crypto_suite(
 			    bctbx_ssl_get_dtls_srtp_protection_profile(ctx->mDtlsCryptoContext.ssl));
 			if (ctx->mSrtpProtectionProfile == MS_CRYPTO_SUITE_INVALID) {
-				ctx->setChannelStatus(DtlsStatus::HandshakeFailed);
+				ctx->setChannelStatus(DtlsStatus::HandshakeFailed, MS_DTLS_ERROR_HANDSHAKE_FAIL_TO_GENERATE_SRTP_KEYS);
 				ms_error("DTLS SRTP handshake successful but unable to agree on srtp_profile to use");
 				return 0;
 			} else {
@@ -412,7 +421,8 @@ int ms_dtls_srtp_rtp_process_on_receive(struct _RtpTransportModifier *t, mblk_t 
 				                                           &dtls_srtp_key_material_length);
 				if (ret < 0) {
 					ms_error("DTLS SRTP Handshake : Unable to retrieve DTLS SRTP key material [-0x%x]", -ret);
-					ctx->setChannelStatus(DtlsStatus::HandshakeFailed);
+					ctx->setChannelStatus(DtlsStatus::HandshakeFailed,
+					                      MS_DTLS_ERROR_HANDSHAKE_FAIL_TO_GENERATE_SRTP_KEYS);
 					return 0;
 				}
 
@@ -435,9 +445,10 @@ int ms_dtls_srtp_rtp_process_on_receive(struct _RtpTransportModifier *t, mblk_t 
 				 * ssl_close_notify( &(ctx->mDtlsCryptoContext.ssl) );*/
 			}
 		}
-		if (ret == BCTBX_ERROR_CERT_VERIFY_FAILED || ret == BCTBX_ERROR_FATAL_ALERT_MSG) {
-			/* something went wrong with the handshake - abort */
-			ctx->setChannelStatus(DtlsStatus::HandshakeFailed);
+		if (ret == BCTBX_ERROR_CERT_VERIFY_FAILED) {
+			/* failed to verify peer's certificate */
+			ctx->resetKeyMaterial();
+			ctx->setChannelStatus(DtlsStatus::HandshakeFailed, MS_DTLS_ERROR_CERT_VERIFY_FAIL);
 		}
 	}
 	return 0;
@@ -612,7 +623,7 @@ void MSDtlsSrtpContext::start() {
 	}
 }
 
-void MSDtlsSrtpContext::setChannelStatus(DtlsStatus status) {
+void MSDtlsSrtpContext::setChannelStatus(DtlsStatus status, MSDtlsError error) {
 	// when status is unchanged, do nothing
 	if (status == mChannelStatus) {
 		return;
@@ -623,7 +634,8 @@ void MSDtlsSrtpContext::setChannelStatus(DtlsStatus status) {
 		OrtpEvent *ev;
 		ev = ortp_event_new(ORTP_EVENT_DTLS_ENCRYPTION_CHANGED);
 		eventData = ortp_event_get_data(ev);
-		eventData->info.dtls_stream_encrypted = 1;
+		eventData->info.dtls_info.dtls_stream_encrypted = 1;
+		eventData->info.dtls_info.errorCode = MS_DTLS_ERROR_NONE;
 		rtp_session_dispatch_event(mStreamSessions->rtp_session, ev);
 		ms_message("DTLS Event dispatched to all: secrets are on for this stream");
 	}
@@ -632,7 +644,8 @@ void MSDtlsSrtpContext::setChannelStatus(DtlsStatus status) {
 		OrtpEvent *ev;
 		ev = ortp_event_new(ORTP_EVENT_DTLS_ENCRYPTION_CHANGED);
 		eventData = ortp_event_get_data(ev);
-		eventData->info.dtls_stream_encrypted = 0;
+		eventData->info.dtls_info.dtls_stream_encrypted = 0;
+		eventData->info.dtls_info.errorCode = error;
 		rtp_session_dispatch_event(mStreamSessions->rtp_session, ev);
 		ms_message("DTLS Event dispatched to all: handshake failed");
 	}
@@ -669,6 +682,14 @@ void MSDtlsSrtpContext::setKeyMaterial() {
 		ms_media_stream_sessions_set_srtp_recv_key(mStreamSessions, mSrtpProtectionProfile, key,
 		                                           DtlsSrtpKeyLen + DtlsSrtpSaltLen, MSSrtpKeySourceDTLS);
 	}
+}
+/* Called after a fatal message received from peer, make sure we do not keep using the SRTP keys generated before if any
+ */
+void MSDtlsSrtpContext::resetKeyMaterial() {
+	ms_media_stream_sessions_set_srtp_recv_key(mStreamSessions, MS_CRYPTO_SUITE_INVALID, NULL, 0,
+	                                           MSSrtpKeySourceUnavailable);
+	ms_media_stream_sessions_set_srtp_send_key(mStreamSessions, MS_CRYPTO_SUITE_INVALID, NULL, 0,
+	                                           MSSrtpKeySourceUnavailable);
 }
 
 /**
