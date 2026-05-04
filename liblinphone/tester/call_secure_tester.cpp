@@ -1265,11 +1265,11 @@ static bool_t setup_dtls_srtp(LinphoneCoreManager *marie, LinphoneCoreManager *p
 	return TRUE;
 }
 
-static void setDtlsVerifyCertInDefaultAccount(LinphoneCore *lc, bool_t flag) {
+static void setDtlsSrtpVerifyCertInDefaultAccount(LinphoneCore *lc, bool_t flag) {
 	LinphoneAccount *account = linphone_core_get_default_account(lc);
 	const LinphoneAccountParams *account_params = linphone_account_get_params(account);
 	LinphoneAccountParams *new_account_params = linphone_account_params_clone(account_params);
-	linphone_account_params_enable_dtls_verify_cert(new_account_params, flag);
+	linphone_account_params_enable_dtls_srtp_verify_cert(new_account_params, flag);
 	linphone_account_set_params(account, new_account_params);
 	linphone_account_params_unref(new_account_params);
 }
@@ -1293,14 +1293,14 @@ static void dtls_srtp_call_with_clients_certificates(void) {
 	add_user_to_core_config(marie->lc, "sip:user_1@sip.example.org", "user_1", "sip.example.org",
 	                        "sip:sip.example.org; transport=tls", "secret");
 	add_tls_client_certificate(marie->lc, "user_1", "sip.example.org", "certificates/client/user1_cert.pem",
-	                           "certificates/client/user1_key.pem", certProvider::config_auth_info_buffer);
-	setDtlsVerifyCertInDefaultAccount(marie->lc, TRUE);
+	                           "certificates/client/user1_key.pem", CertProviderConfigAuthInfoBuffer);
+	setDtlsSrtpVerifyCertInDefaultAccount(marie->lc, TRUE);
 
 	add_user_to_core_config(pauline->lc, "sip:user_2@sip.example.org", "user_2", "sip.example.org",
 	                        "sip:sip.example.org; transport=tls", "secret");
 	add_tls_client_certificate(pauline->lc, "user_2", "sip.example.org", "certificates/client/user2_cert.pem",
-	                           "certificates/client/user2_key.pem", certProvider::config_auth_info_path);
-	setDtlsVerifyCertInDefaultAccount(pauline->lc, TRUE);
+	                           "certificates/client/user2_key.pem", CertProviderConfigAuthInfoPath);
+	setDtlsSrtpVerifyCertInDefaultAccount(pauline->lc, TRUE);
 
 	LinphoneVideoActivationPolicy *vpol = linphone_factory_create_video_activation_policy(linphone_factory_get());
 	linphone_video_activation_policy_set_automatically_accept(vpol, FALSE);
@@ -1357,8 +1357,8 @@ static void dtls_srtp_call_with_missing_client_certificate(void) {
 	add_user_to_core_config(marie->lc, "sip:user_1@sip.example.org", "user_1", "sip.example.org",
 	                        "sip:sip.example.org; transport=tls", "secret");
 	add_tls_client_certificate(marie->lc, "user_1", "sip.example.org", "certificates/client/user1_cert.pem",
-	                           "certificates/client/user1_key.pem", certProvider::config_auth_info_buffer);
-	setDtlsVerifyCertInDefaultAccount(marie->lc, TRUE);
+	                           "certificates/client/user1_key.pem", CertProviderConfigAuthInfoBuffer);
+	setDtlsSrtpVerifyCertInDefaultAccount(marie->lc, TRUE);
 
 	// No client certificate for Pauline, she'll generated a self signed one
 	add_user_to_core_config(pauline->lc, "sip:user_2@sip.example.org", "user_2", "sip.example.org",
@@ -1437,13 +1437,13 @@ static void dtls_srtp_call_with_unmatching_client_certificates(void) {
 	add_user_to_core_config(marie->lc, "sip:user_1@sip.example.org", "user_1", "sip.example.org",
 	                        "sip:sip.example.org; transport=tls", "secret");
 	add_tls_client_certificate(marie->lc, "user_1", "sip.example.org", "certificates/client/user1_cert.pem",
-	                           "certificates/client/user1_key.pem", certProvider::config_auth_info_buffer);
-	setDtlsVerifyCertInDefaultAccount(marie->lc, TRUE);
+	                           "certificates/client/user1_key.pem", CertProviderConfigAuthInfoBuffer);
+	setDtlsSrtpVerifyCertInDefaultAccount(marie->lc, TRUE);
 
 	add_user_to_core_config(pauline->lc, "sip:user_2@sip.example.org", "user_2", "sip.example.org",
 	                        "sip:sip.example.org; transport=tls", "secret");
 	// no client certificates for Pauline, use a valid one set in the client certs path
-	setDtlsVerifyCertInDefaultAccount(pauline->lc, TRUE);
+	setDtlsSrtpVerifyCertInDefaultAccount(pauline->lc, TRUE);
 
 	LinphoneVideoActivationPolicy *vpol = linphone_factory_create_video_activation_policy(linphone_factory_get());
 	linphone_video_activation_policy_set_automatically_accept(vpol, FALSE);

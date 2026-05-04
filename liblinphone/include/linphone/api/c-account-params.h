@@ -1031,14 +1031,14 @@ LINPHONE_PUBLIC void linphone_account_params_set_supported_tags_list(LinphoneAcc
  * @param params The #LinphoneAccountParams object. @notnil
  * @return TRUE if the certificate verification during DTLS is enabled.
  **/
-LINPHONE_PUBLIC bool_t linphone_account_params_dtlt_verify_cert_enabled(const LinphoneAccountParams *params);
+LINPHONE_PUBLIC bool_t linphone_account_params_dtls_srtp_verify_cert_enabled(const LinphoneAccountParams *params);
 
 /**
  * Indicates  either or not, certificate must be verified during DTLS when using this #LinphoneAccountParams.
  * @param params #LinphoneAccountParams object. @notnil
  * @param enable If TRUE, certificate will be verified during DTLS handshake.
  */
-LINPHONE_PUBLIC void linphone_account_params_enable_dtls_verify_cert(LinphoneAccountParams *params, bool_t enable);
+LINPHONE_PUBLIC void linphone_account_params_enable_dtls_srtp_verify_cert(LinphoneAccountParams *params, bool_t enable);
 /**
  * @}
  */

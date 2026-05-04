@@ -35,7 +35,7 @@ using namespace Linphone::Tester;
 
 // Helper to loop on all certificate providing methods availables
 static std::array<certProvider, 3> availCertProv{
-    {certProvider::config_sip, certProvider::config_auth_info_buffer, certProvider::config_auth_info_path}};
+    {CertProviderConfigSip, CertProviderConfigAuthInfoBuffer, CertProviderConfigAuthInfoPath}};
 
 static void TLS_mandatory_two_users_curve(const LinphoneTesterLimeAlgo curveId) {
 	LinphoneCoreManager *lcm = linphone_core_manager_create(NULL);
@@ -43,11 +43,11 @@ static void TLS_mandatory_two_users_curve(const LinphoneTesterLimeAlgo curveId) 
 	                        "sip:sip.example.org; transport=tls", "secret");
 	add_user_to_core_config(lcm->lc, "sip:user_2@sip.example.org", "user_2", "sip.example.org",
 	                        "sip:sip.example.org; transport=tls", "secret");
-	add_tls_client_certificate(
-	    lcm->lc, "user_1", "sip.example.org", "certificates/client/user1_multiple_aliases_cert.pem",
-	    "certificates/client/user1_multiple_aliases_key.pem", certProvider::config_auth_info_path);
+	add_tls_client_certificate(lcm->lc, "user_1", "sip.example.org",
+	                           "certificates/client/user1_multiple_aliases_cert.pem",
+	                           "certificates/client/user1_multiple_aliases_key.pem", CertProviderConfigAuthInfoPath);
 	add_tls_client_certificate(lcm->lc, "user_2", "sip.example.org", "certificates/client/user2_cert.pem",
-	                           "certificates/client/user2_key.pem", certProvider::config_auth_info_buffer);
+	                           "certificates/client/user2_key.pem", CertProviderConfigAuthInfoBuffer);
 	bctbx_list_t *coresManagerList = NULL;
 	coresManagerList = bctbx_list_append(coresManagerList, lcm);
 	set_lime_server_and_curve_list_tls(curveId, coresManagerList, TRUE, TRUE);
@@ -86,11 +86,11 @@ static void create_user_sip_client_cert_chain(const LinphoneTesterLimeAlgo curve
 	const std::string identity = std::string("sip:").append(username).append("@").append(realm);
 
 	// add user
-	add_user_to_core_config(lcm->lc, identity.data(), username.data(), realm.data(),
+	add_user_to_core_config(lcm->lc, identity.c_str(), username.c_str(), realm.c_str(),
 	                        "sip:sip.example.org; transport=tls", "secret");
 
 	// add client certificate
-	add_tls_client_certificate(lcm->lc, username, realm, cert, key, method);
+	add_tls_client_certificate(lcm->lc, username.c_str(), realm.c_str(), cert.c_str(), key.c_str(), method);
 
 	bctbx_list_t *coresManagerList = NULL;
 	coresManagerList = bctbx_list_append(coresManagerList, lcm);
@@ -227,12 +227,12 @@ static void TLS_optional_CN_UserId_mismatch(void) {
 static void TLS_optional_No_certificate(void) {
 	const std::string empty{};
 	/* just use the config_sip method, each method shall actually just do nothing when given an empty certificate */
-	create_user_sip_client_cert_chain(C25519, tls_optional, certProvider::config_sip, empty, empty, false);
-	create_user_sip_client_cert_chain(C448, tls_optional, certProvider::config_sip, empty, empty, false);
+	create_user_sip_client_cert_chain(C25519, tls_optional, CertProviderConfigSip, empty, empty, false);
+	create_user_sip_client_cert_chain(C448, tls_optional, CertProviderConfigSip, empty, empty, false);
 	if (liblinphone_tester_is_lime_PQ_available()) {
-		create_user_sip_client_cert_chain(C25519K512, tls_optional, certProvider::config_sip, empty, empty, false);
-		create_user_sip_client_cert_chain(C25519MLK512, tls_optional, certProvider::config_sip, empty, empty, false);
-		create_user_sip_client_cert_chain(C448MLK1024, tls_optional, certProvider::config_sip, empty, empty, false);
+		create_user_sip_client_cert_chain(C25519K512, tls_optional, CertProviderConfigSip, empty, empty, false);
+		create_user_sip_client_cert_chain(C25519MLK512, tls_optional, CertProviderConfigSip, empty, empty, false);
+		create_user_sip_client_cert_chain(C448MLK1024, tls_optional, CertProviderConfigSip, empty, empty, false);
 	}
 }
 
@@ -242,12 +242,12 @@ static void TLS_optional_No_certificate(void) {
 static void TLS_mandatory_No_certificate(void) {
 	const std::string empty{};
 	/* just use the config_sip method, each method shall actually just do nothing when given an empty certificate */
-	create_user_sip_client_cert_chain(C25519, tls_mandatory, certProvider::config_sip, empty, empty, true);
-	create_user_sip_client_cert_chain(C448, tls_mandatory, certProvider::config_sip, empty, empty, true);
+	create_user_sip_client_cert_chain(C25519, tls_mandatory, CertProviderConfigSip, empty, empty, true);
+	create_user_sip_client_cert_chain(C448, tls_mandatory, CertProviderConfigSip, empty, empty, true);
 	if (liblinphone_tester_is_lime_PQ_available()) {
-		create_user_sip_client_cert_chain(C25519K512, tls_mandatory, certProvider::config_sip, empty, empty, true);
-		create_user_sip_client_cert_chain(C25519MLK512, tls_mandatory, certProvider::config_sip, empty, empty, true);
-		create_user_sip_client_cert_chain(C448MLK1024, tls_mandatory, certProvider::config_sip, empty, empty, true);
+		create_user_sip_client_cert_chain(C25519K512, tls_mandatory, CertProviderConfigSip, empty, empty, true);
+		create_user_sip_client_cert_chain(C25519MLK512, tls_mandatory, CertProviderConfigSip, empty, empty, true);
+		create_user_sip_client_cert_chain(C448MLK1024, tls_mandatory, CertProviderConfigSip, empty, empty, true);
 	}
 }
 

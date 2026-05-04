@@ -968,7 +968,7 @@ void MS2Stream::initDtlsParams(MediaStream *ms) {
 			    MSDtlsSrtpRoleUnset; /* Default is unset, then check if we have a result SalMediaDescription */
 			if (localAccount) {
 				dtlsParams.verify_certificate =
-				    localAccount->getAccountParams()->dtlsVerifyCertEnabled() ? TRUE : FALSE;
+				    localAccount->getAccountParams()->dtlsSrtpVerifyCertEnabled() ? TRUE : FALSE;
 			} else {
 				dtlsParams.verify_certificate = FALSE;
 			}

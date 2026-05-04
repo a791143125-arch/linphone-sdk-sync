@@ -103,7 +103,7 @@ public:
 	void setVoicemailAddress(const std::shared_ptr<Address> &address);
 	void setInstantMessagingEncryptionMandatory(bool mandatory);
 	void setSupportedTagsList(const std::list<std::string> &supportedTagsList);
-	void enableDtlsVerifyCert(bool flag);
+	void enableDtlsSrtpVerifyCert(bool flag);
 
 	// Getters
 	int getExpires() const;
@@ -164,7 +164,7 @@ public:
 	const std::list<std::string> &getSupportedTagsList() const;
 	const bctbx_list_t *getSupportedTagsCList() const;
 	bool useSupportedTags() const;
-	bool dtlsVerifyCertEnabled() const;
+	bool dtlsSrtpVerifyCertEnabled() const;
 
 	// Other
 	LinphoneStatus setServerAddress(const std::shared_ptr<const Address> &serverAddr);
@@ -203,7 +203,7 @@ private:
 	bool mUseInternationalPrefixForCallsAndChats;
 	bool mRtpBundleEnabled;
 	bool mRtpBundleAssumption;
-	bool mDtlsVerifyCertEnabled;
+	bool mDtlsSrtpVerifyCertEnabled;
 	bool mAllowCpimMessagesInBasicChatRooms;
 	bool mInstantMessagingEncryptionMandatory;
 

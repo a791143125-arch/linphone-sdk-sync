@@ -46,8 +46,7 @@ struct _SrtpInfo {
 
 class EncryptionStatus {
 public:
-	EncryptionStatus() {
-		mError = LinphoneMediaEncryptionErrorNone;
+	EncryptionStatus() : mError(LinphoneMediaEncryptionErrorNone) {
 	}
 
 	EncryptionStatus(const EncryptionStatus &other) = default;

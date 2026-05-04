@@ -530,10 +530,10 @@ void linphone_account_params_set_supported_tags_list(LinphoneAccountParams *para
 	AccountParams::toCpp(params)->setSupportedTagsList(supportedTagsList);
 }
 
-bool_t linphone_account_params_dtlt_verify_cert_enabled(const LinphoneAccountParams *params) {
-	return AccountParams::toCpp(params)->dtlsVerifyCertEnabled();
+bool_t linphone_account_params_dtls_srtp_verify_cert_enabled(const LinphoneAccountParams *params) {
+	return AccountParams::toCpp(params)->dtlsSrtpVerifyCertEnabled();
 }
 
-void linphone_account_params_enable_dtls_verify_cert(LinphoneAccountParams *params, bool_t enable) {
-	AccountParams::toCpp(params)->enableDtlsVerifyCert(enable);
+void linphone_account_params_enable_dtls_srtp_verify_cert(LinphoneAccountParams *params, bool_t enable) {
+	AccountParams::toCpp(params)->enableDtlsSrtpVerifyCert(enable);
 }
