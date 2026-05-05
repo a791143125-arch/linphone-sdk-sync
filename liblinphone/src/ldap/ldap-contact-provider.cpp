@@ -139,7 +139,7 @@ void LdapContactProvider::ldapTlsConnection() {
 			fallbackToNextServerUrl();
 			mTlsConnectionId = -1;
 		} else // mTlsConnectionId is not -1 only on success.
-			lInfo() << "[LDAP] ldap_start_tls success";
+			lDebug() << "[LDAP] ldap_start_tls success";
 	} // Not 'else' : we try to get a result without having to wait an iteration
 	  // 2) Wait for connection
 	if (mTlsConnectionId >= 0) {
@@ -217,7 +217,9 @@ void LdapContactProvider::initializeLdap() {
 	struct timeval timeout = {configValueToInt("timeout"), 0};
 	mCurrentAction = ACTION_NONE;
 
-	ber_set_option(NULL, LBER_OPT_LOG_PRINT_FN, (const void *)onLdapLog);
+	if (mLdapServer->getDebugLevel() == LinphoneLdapDebugLevelVerbose) {
+		ber_set_option(NULL, LBER_OPT_LOG_PRINT_FN, (const void *)onLdapLog);
+	}
 
 	if (ret != LDAP_SUCCESS)
 		lError() << "[LDAP] Problem initializing default Protocol version to 3 : " << ret << ", ("
