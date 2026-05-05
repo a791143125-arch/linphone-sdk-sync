@@ -1142,11 +1142,11 @@ void Core::iterate() noexcept {
 				friendList->updateDirtyFriends();
 		}
 	}
-	/*
+
 	if (liblinphone_serialize_logs == TRUE) {
-	    ortp_logv_flush();
+		ortp_logv_flush();
 	}
-	*/
+
 	/* When doing asynchronous core stop, the core goes to LinphoneGlobalShutdown state
 	Then iterate() needs to be called until synchronous tasks are done
 	Then the stop is finished and the status is changed to LinphoneGlobalOff */
