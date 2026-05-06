@@ -283,6 +283,8 @@ private:
 
 	bool hasAdminLeft() const;
 
+	MediaSessionParams *getDefaultMediaParams() const;
+
 	void updateConferenceInformation();
 	void checkConferenceParams();
 	bool supportsVideoCapabilities() const;
