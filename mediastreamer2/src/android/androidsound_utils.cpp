@@ -480,7 +480,11 @@ void ms_android_sound_utils_change_device(const AndroidSoundUtils *utils, int de
 			env->CallStaticVoidMethod(utils->mediastreamerAndroidContextClass, utils->enableSpeaker);
 		} else if (type == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_BLUETOOTH ||
 		           type == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_HEARING_AID) {
-			env->CallStaticVoidMethod(utils->mediastreamerAndroidContextClass, utils->startBluetooth);
+			if (deviceID == -1) {
+				env->CallStaticVoidMethod(utils->mediastreamerAndroidContextClass, utils->stopBluetooth);
+			} else {
+				env->CallStaticVoidMethod(utils->mediastreamerAndroidContextClass, utils->startBluetooth);
+			}
 		} else if (type == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_EARPIECE ||
 		           type == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_HEADSET ||
 		           type == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_HEADPHONES) {

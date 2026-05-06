@@ -43,6 +43,7 @@ public class MediastreamerAndroidContext {
 	private static boolean mDisableVolumeWorkaround = false;
 
 	private MediastreamerAndroidContext() {
+		Log.i("[Mediastreamer2] Android context created");
 	}
 
 	private static MediastreamerAndroidContext instance;
@@ -74,7 +75,7 @@ public class MediastreamerAndroidContext {
 		if (nativeLibs == null || nativeLibs.length == 0) {
 			// This scenario is for app bundle mode packaging, expected path to be like
 			// /data/app/org.linphone.debug-2/split_config.armeabi_v7a.apk!/lib/armeabi-v7a
-			Log.w("Native library directory is empty, using path to native libs for app bundle mode");
+			Log.w("[Mediastreamer2] Native library directory is empty, using path to native libs for app bundle mode");
 			nativeLibDir = nativeLibDir.substring(0, nativeLibDir.indexOf("/lib"));
 			nativeLibDir += "/split_config." + Build.SUPPORTED_ABIS[0].replace("-", "_") + ".apk!/lib/" + Build.SUPPORTED_ABIS[0];
 		}
@@ -91,7 +92,7 @@ public class MediastreamerAndroidContext {
 
 		boolean hasLowLatencyFeature = mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUDIO_LOW_LATENCY);
 		boolean hasProFeature = mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUDIO_PRO);
-		Log.i("[Device] hasLowLatencyFeature: " + hasLowLatencyFeature + ", hasProFeature: " + hasProFeature);
+		Log.i("[Mediastreamer2] [Device] hasLowLatencyFeature: " + hasLowLatencyFeature + ", hasProFeature: " + hasProFeature);
 
 		int bufferSize = 256;
 		int sampleRate = 44100;
@@ -105,11 +106,11 @@ public class MediastreamerAndroidContext {
 			bufferSize = parseInt(bufferProperty, bufferSize);
 			String sampleRateProperty = audiomanager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
 			sampleRate = parseInt(sampleRateProperty, sampleRate);
-			Log.i("[Device] Output frames per buffer: " + bufferSize + ", output sample rate: " + sampleRate + ".");
+			Log.i("[Mediastreamer2] [Device] Output frames per buffer: " + bufferSize + ", output sample rate: " + sampleRate + ".");
 			mDeviceFavoriteSampleRate = sampleRate;
 			mDeviceFavoriteBufferSize = bufferSize;
 		} else {
-			Log.i("Android < 4.4 detected, android context not used.");
+			Log.i("[Mediastreamer2] Android < 4.4 detected, android context not used.");
 		}
 	}
 
@@ -126,7 +127,7 @@ public class MediastreamerAndroidContext {
 				flag = AudioManager.GET_DEVICES_ALL;
 				break;
 			default:
-				Log.e("Unknown device direction - Provided is " + device_dir + " Valid values are output input all");
+				Log.e("[Mediastreamer2] Unknown device direction - Provided is " + device_dir + " Valid values are output input all");
 				break;
 		}
 
@@ -135,7 +136,7 @@ public class MediastreamerAndroidContext {
 		for (AudioDeviceInfo device : devices) {
 			int type = device.getType();
 			String stringType = getHumanReadableAudioDeviceType(type);
-			Log.i("[Audio Manager] Found device: name [" + device.getProductName() + "], ID [" + device.getId() + "], type [" + stringType + " (" + type + ")], isSource [" + device.isSource() + "], isSink [" + device.isSink() + "], address [" + device.getAddress() + "]");
+			Log.i("[Mediastreamer2] [Audio Manager] Found device: name [" + device.getProductName() + "], ID [" + device.getId() + "], type [" + stringType + " (" + type + ")], isSource [" + device.isSource() + "], isSink [" + device.isSink() + "], address [" + device.getAddress() + "]");
 		}
 		return devices;
 	}
@@ -150,7 +151,7 @@ public class MediastreamerAndroidContext {
 		try {
 			returnedValue = Integer.parseInt(value);
 		} catch (NumberFormatException nfe) {
-			Log.e("Can't parse " + value + " to integer ; using default value " + defaultValue);
+			Log.e("[Mediastreamer2] Can't parse " + value + " to integer ; using default value " + defaultValue);
 		}
 		return returnedValue;
 	}
@@ -183,18 +184,18 @@ public class MediastreamerAndroidContext {
 
 	public synchronized static void disableAudioRouteChanges(boolean disable) {
 		if (disable) {
-			Log.i("[Audio Manager] Disabling audio route changes in sound cards");
+			Log.i("[Mediastreamer2] [Audio Manager] Disabling audio route changes in sound cards");
 		} else {
-			Log.i("[Audio Manager] Enabling audio route changes in sound cards");
+			Log.i("[Mediastreamer2] [Audio Manager] Enabling audio route changes in sound cards");
 		}
 		mDisableAudioRouteChanges = disable;
 	}
 
 	public synchronized static void disableVolumeWorkaround(boolean disable) {
 		if (disable) {
-			Log.i("[Audio Manager] Disabling audio volume workaround");
+			Log.i("[Mediastreamer2] [Audio Manager] Disabling audio volume workaround");
 		} else {
-			Log.i("[Audio Manager] Enabling audio volume workaround");
+			Log.i("[Mediastreamer2] [Audio Manager] Enabling audio volume workaround");
 		}
 		mDisableVolumeWorkaround = disable;
 	}
@@ -205,7 +206,7 @@ public class MediastreamerAndroidContext {
 			stopBluetooth();
 		}
 
-		Log.i("[Audio Manager] Turning on speakerphone");
+		Log.i("[Mediastreamer2] [Audio Manager] Turning on speakerphone");
 		audioManager.setSpeakerphoneOn(true);
 	}
 
@@ -215,17 +216,17 @@ public class MediastreamerAndroidContext {
 			stopBluetooth();
 		}
 
-		Log.i("[Audio Manager] Turning off speakerphone");
+		Log.i("[Mediastreamer2] [Audio Manager] Turning off speakerphone");
 		audioManager.setSpeakerphoneOn(false);
 	}
 
 	public synchronized static void startBluetooth() {
 		AudioManager audioManager = (AudioManager)getContext().getSystemService(Context.AUDIO_SERVICE);
 		if (audioManager.isBluetoothScoOn()) {
-			Log.i("[Audio Manager] Bluetooth SCO is already started");
+			Log.i("[Mediastreamer2] [Audio Manager] Bluetooth SCO is already started");
 		} else {
-			Log.i("[Audio Manager] Starting bluetooth SCO");
-			audioManager.setBluetoothScoOn(true);
+			Log.i("[Mediastreamer2] [Audio Manager] Starting bluetooth SCO");
+			//audioManager.setBluetoothScoOn(true);
 			audioManager.startBluetoothSco();
 		}
 	}
@@ -233,11 +234,11 @@ public class MediastreamerAndroidContext {
 	public synchronized static void stopBluetooth() {
 		AudioManager audioManager = (AudioManager)getContext().getSystemService(Context.AUDIO_SERVICE);
 		if (!audioManager.isBluetoothScoOn()) {
-			Log.i("[Audio Manager] Bluetooth SCO is not started");
+			Log.i("[Mediastreamer2] [Audio Manager] Bluetooth SCO is not started");
 		} else {
-			Log.i("[Audio Manager] Stopping bluetooth SCO");
+			Log.i("[Mediastreamer2] [Audio Manager] Stopping bluetooth SCO");
 			audioManager.stopBluetoothSco();
-			audioManager.setBluetoothScoOn(false);
+			//audioManager.setBluetoothScoOn(false);
 		}
 	}
 
@@ -247,29 +248,29 @@ public class MediastreamerAndroidContext {
 
 	public synchronized static void hackVolumeOnStream(int stream) {
 		if (mDisableVolumeWorkaround) {
-			Log.i("[Audio Manager] Volume workaround is disabled, doing nothing");
+			Log.i("[Mediastreamer2] [Audio Manager] Volume workaround is disabled, doing nothing");
 			return;
 		}
 
-		Log.i("[Audio Manager] Trying to workaround no sound issue on stream [" + stream + "] until volume has changed...");
+		Log.i("[Mediastreamer2] [Audio Manager] Trying to workaround no sound issue on stream [" + stream + "] until volume has changed...");
 		try {
 			AudioManager audioManager = (AudioManager)getContext().getSystemService(Context.AUDIO_SERVICE);
 			if (stream == AudioManager.STREAM_RING) {
 				int ringerMode = audioManager.getRingerMode();
 				if (ringerMode == AudioManager.RINGER_MODE_SILENT || ringerMode == AudioManager.RINGER_MODE_VIBRATE) {
-					Log.w("[Audio Manager] Device is either in silent or vibrate mode, do not apply volume workaround on RING stream!");
+					Log.w("[Mediastreamer2] [Audio Manager] Device is either in silent or vibrate mode, do not apply volume workaround on RING stream!");
 					return;
 				}
 			}
 
 			boolean isVolumeFixed = audioManager.isVolumeFixed();
 			if (isVolumeFixed) {
-				Log.w("[Audio Manager] Device's volume is fixed, workaround will probably fail!");
+				Log.w("[Mediastreamer2] [Audio Manager] Device's volume is fixed, workaround will probably fail!");
 			}
 
 			int maxVolume = audioManager.getStreamMaxVolume(stream);
 			int currentVolume = audioManager.getStreamVolume(stream);
-			Log.i("[Audio Manager] Max volume for stream is " + maxVolume + ", current volume is " + currentVolume);
+			Log.i("[Mediastreamer2] [Audio Manager] Max volume for stream is " + maxVolume + ", current volume is " + currentVolume);
 			int timeInMills = 50;
 			if (maxVolume == currentVolume) {
 				// It seems the following API may result in volume not being the same as it was before the operation
@@ -281,7 +282,7 @@ public class MediastreamerAndroidContext {
 					Log.e("[Audio Manager] Security exception during adjustSuggestedStreamVolume: ", se);
 				}*/
 
-				Log.i("[Audio Manager] Volume is at it's maximum, lowering it, waiting [" + timeInMills + "]ms and then raising it");
+				Log.i("[Mediastreamer2] [Audio Manager] Volume is at it's maximum, lowering it, waiting [" + timeInMills + "]ms and then raising it");
 				audioManager.adjustStreamVolume(stream, AudioManager.ADJUST_LOWER, 0);
 				SystemClock.sleep(timeInMills);
 				audioManager.adjustStreamVolume(stream, AudioManager.ADJUST_RAISE, 0);
@@ -295,28 +296,28 @@ public class MediastreamerAndroidContext {
 					Log.e("[Audio Manager] Security exception during adjustSuggestedStreamVolume: ", se);
 				}*/
 
-				Log.i("[Audio Manager] Volume is not at it's maximum, raising it, waiting [" + timeInMills + "]ms and then lowering it");
+				Log.i("[Mediastreamer2] [Audio Manager] Volume is not at it's maximum, raising it, waiting [" + timeInMills + "]ms and then lowering it");
 				audioManager.adjustStreamVolume(stream, AudioManager.ADJUST_RAISE, 0);
 				SystemClock.sleep(timeInMills);
 				audioManager.adjustStreamVolume(stream, AudioManager.ADJUST_LOWER, 0);
 			}
 			
 			int newCurrentVolume = audioManager.getStreamVolume(stream);
-			Log.i("[Audio Manager] Workaround was applied, current volume is " + newCurrentVolume);
+			Log.i("[Mediastreamer2] [Audio Manager] Workaround was applied, current volume is " + newCurrentVolume);
 			if (newCurrentVolume != currentVolume) {
-				Log.e("[Audio Manager] Volume level isn't the same after applying the workaround [" + newCurrentVolume + "] than it was before [" + currentVolume + "]!");
+				Log.e("[Mediastreamer2] [Audio Manager] Volume level isn't the same after applying the workaround [" + newCurrentVolume + "] than it was before [" + currentVolume + "]!");
 			}
 		} catch (Exception e) {
-			Log.e("[Audio Manager] Failed to adjust volume: ", e);
+			Log.e("[Mediastreamer2] [Audio Manager] Failed to adjust volume: ", e);
 		}
 	}
 
 	public synchronized static boolean isRecordAudioPermissionGranted() {
 		boolean granted = mContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
 		if (!granted) {
-			Log.w("[Audio Manager] RECORD_AUDIO permission is not granted!");
+			Log.w("[Mediastreamer2] [Audio Manager] RECORD_AUDIO permission is not granted!");
 		} else {
-			Log.i("[Audio Manager] RECORD_AUDIO permission is granted");
+			Log.i("[Mediastreamer2] [Audio Manager] RECORD_AUDIO permission is granted");
 		}
 		return granted;
 	}
@@ -324,9 +325,9 @@ public class MediastreamerAndroidContext {
 	public synchronized static boolean isCameraPermissionGranted() {
 		boolean granted = mContext.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
 		if (!granted) {
-			Log.w("[Platform Helper] CAMERA permission is not granted!");
+			Log.w("[Mediastreamer2] [Platform Helper] CAMERA permission is not granted!");
 		} else {
-			Log.i("[Platform Helper] CAMERA permission is granted");
+			Log.i("[Mediastreamer2] [Platform Helper] CAMERA permission is granted");
 		}
 		return granted;
 	}
@@ -336,10 +337,11 @@ public class MediastreamerAndroidContext {
 		AudioManager audioManager = (AudioManager)getContext().getSystemService(Context.AUDIO_SERVICE);
 		for (AudioDeviceInfo audioDeviceInfo : audioManager.getAvailableCommunicationDevices()) {
 			if (audioDeviceInfo.getId() == id) {
-				Log.i("[Audio Manager] Found available communication device matching ID [" + id + "]: " + audioDeviceInfo);
+				Log.i("[Mediastreamer2] [Audio Manager] Found available communication device matching ID [" + id + "]: " + audioDeviceInfo);
 				return audioManager.setCommunicationDevice(audioDeviceInfo);
 			}
 		}
+		Log.w("[Mediastreamer2] [Audio Manager] Failed to find communication device matching ID [" + id + "]!");
 		return false;
 	}
 
@@ -347,11 +349,11 @@ public class MediastreamerAndroidContext {
 	public synchronized static void clearCommunicationDevice() {
 		AudioManager audioManager = (AudioManager)getContext().getSystemService(Context.AUDIO_SERVICE);
 		audioManager.clearCommunicationDevice();
-		Log.i("[Audio Manager] Cleared communication device");
+		Log.i("[Mediastreamer2] [Audio Manager] Cleared communication device");
 	}
 
 	public synchronized static boolean checkMediaCodecAvailability(String mimeType) {
-		Log.i("[Media Codec] Looking if mime type [" + mimeType + "] is supported");
+		Log.i("[Mediastreamer2] [Media Codec] Looking if mime type [" + mimeType + "] is supported");
 		MediaCodecList mediaCodecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
 		boolean encoderFound = false;
 		boolean decoderFound = false;
@@ -361,10 +363,10 @@ public class MediastreamerAndroidContext {
 			for (int j = 0; j < types.length; j++) {
 				if (types[j].equalsIgnoreCase(mimeType)) {
 					if (codecInfo.isEncoder()) {
-						Log.i("[Media Codec] Found encoder for mime type [" + mimeType + "]");
+						Log.i("[Mediastreamer2] [Media Codec] Found encoder for mime type [" + mimeType + "]");
 						encoderFound = true;
 					} else {
-						Log.i("[Media Codec] Found decoder for mime type [" + mimeType + "]");
+						Log.i("[Mediastreamer2] [Media Codec] Found decoder for mime type [" + mimeType + "]");
 						decoderFound = true;
 					}
 

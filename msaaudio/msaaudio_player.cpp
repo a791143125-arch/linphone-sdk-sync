@@ -100,7 +100,7 @@ struct AAudioOutputContext {
 		bufferCapacity = 0;
 		bufferSize = 0;
 		framesPerBurst = 0;
-		bluetoothScoStarted = false;
+		//bluetoothScoStarted = false;
 		volumeHackRequired = false;
 		task = nullptr;
 		checkForDeviceChange = false;
@@ -172,7 +172,7 @@ struct AAudioOutputContext {
 	int32_t prevXRunCount;
 	int32_t bufferSize;
 	int32_t framesPerBurst;
-	bool bluetoothScoStarted;
+	//bool bluetoothScoStarted;
 	MSTask *task;
 	bool checkForDeviceChange;
 	bool volumeHackRequired;
@@ -456,13 +456,14 @@ static void anroid_snd_write_require_volume_hack_depending_on_stream(AAudioOutpu
 static void android_snd_write_preprocess(MSFilter *obj) {
 	AAudioOutputContext *octx = (AAudioOutputContext*)obj->data;
 	
-	if (ms_snd_card_get_device_type(octx->soundCard) == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_BLUETOOTH ||
+	/*if (ms_snd_card_get_device_type(octx->soundCard) == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_BLUETOOTH ||
 		ms_snd_card_get_device_type(octx->soundCard) == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_HEARING_AID)
 	{
 		ms_message("[AAudio Player] We were asked to use a bluetooth sound device (or hearing aid), starting SCO in Android's AudioManager");
 		octx->bluetoothScoStarted = true;
 		ms_android_sound_utils_enable_bluetooth(octx->sound_utils, octx->bluetoothScoStarted);
-	}
+	}*/
+	ms_android_sound_utils_change_device(octx->sound_utils, octx->soundCard->internal_id, ms_snd_card_get_device_type(octx->soundCard));
 
 	ms_worker_thread_add_task(octx->process_thread, (MSTaskFunc)aaudio_player_init, octx);
 }
@@ -554,12 +555,13 @@ static void android_snd_write_postprocess(MSFilter *obj) {
 	octx->adjustingBufferSize = false;
 	octx->task = ms_worker_thread_add_waitable_task(octx->process_thread, (MSTaskFunc)aaudio_player_close, octx);
 	
-	if (octx->bluetoothScoStarted) {
+	/*if (octx->bluetoothScoStarted) {
 		ms_message("[AAudio Player] We previously started SCO in Android's AudioManager, stopping it now");
 		octx->bluetoothScoStarted = false;
 		// At the end of a call, postprocess is called therefore here the bluetooth device is disabled
 		ms_android_sound_utils_enable_bluetooth(octx->sound_utils, FALSE);
-	}
+	}*/
+	ms_android_sound_utils_change_device(octx->sound_utils, -1, MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_BLUETOOTH);
 }
 
 static int android_snd_write_set_device_id(MSFilter *obj, void *data) {
@@ -582,7 +584,7 @@ static int android_snd_write_set_device_id(MSFilter *obj, void *data) {
 
 		bool bluetoothSoundDevice = ms_snd_card_get_device_type(octx->soundCard) == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_BLUETOOTH ||
 									ms_snd_card_get_device_type(octx->soundCard) == MSSndCardDeviceType::MS_SND_CARD_DEVICE_TYPE_HEARING_AID;
-		if (bluetoothSoundDevice != octx->bluetoothScoStarted) {
+		/*if (bluetoothSoundDevice != octx->bluetoothScoStarted) {
 			if (bluetoothSoundDevice) {
 				ms_message("[AAudio Player] New sound device has bluetooth (or hearing aid) type, starting Android AudioManager's SCO");
 			} else {
@@ -591,7 +593,8 @@ static int android_snd_write_set_device_id(MSFilter *obj, void *data) {
 
 			ms_android_sound_utils_enable_bluetooth(octx->sound_utils, bluetoothSoundDevice);
 			octx->bluetoothScoStarted = bluetoothSoundDevice;
-		}
+		}*/
+		ms_android_sound_utils_change_device(octx->sound_utils, octx->soundCard->internal_id, ms_snd_card_get_device_type(octx->soundCard));
 
 		ms_mutex_lock(&octx->stream_mutex);
 		if (octx->stream) {
