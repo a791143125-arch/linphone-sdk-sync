@@ -149,7 +149,6 @@ liblinphonetester_la_SOURCES = \
 				register_tester.c \
 				remote_provisioning_tester.c \
 				setup_tester.c \
-				stun_tester.c \
 				tester.c \
 				tunnel_tester.c \
 				vcard_tester.c \

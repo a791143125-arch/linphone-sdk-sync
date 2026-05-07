@@ -124,7 +124,7 @@ extern test_suite_t register_test_suite;
 extern test_suite_t remote_provisioning_test_suite;
 extern test_suite_t setup_test_suite;
 extern test_suite_t log_file_test_suite;
-extern test_suite_t stun_test_suite;
+extern test_suite_t stun_turn_test_suite;
 extern test_suite_t tunnel_test_suite;
 extern test_suite_t upnp_test_suite;
 extern test_suite_t utils_test_suite;
@@ -175,7 +175,6 @@ extern test_suite_t mwi_test_suite;
 extern test_suite_t bearer_auth_test_suite;
 extern test_suite_t call_twisted_cases_suite;
 extern test_suite_t http_client_test_suite;
-extern test_suite_t turn_server_test_suite;
 extern test_suite_t refer_test_suite;
 extern test_suite_t dtmf_test_suite;
 extern test_suite_t friends_test_suite;
@@ -1103,7 +1102,7 @@ void check_reactions(LinphoneChatMessage *message,
                      const bctbx_list_t *expected_reactions_from);
 
 /*
- * this function return max value in the last 3 seconds*/
+ * this function returns max value in the last 3 seconds*/
 int linphone_core_manager_get_max_audio_down_bw(const LinphoneCoreManager *mgr);
 int linphone_core_manager_get_max_audio_up_bw(const LinphoneCoreManager *mgr);
 int linphone_core_manager_get_mean_audio_down_bw(const LinphoneCoreManager *mgr);
@@ -1111,8 +1110,8 @@ int linphone_core_manager_get_mean_audio_up_bw(const LinphoneCoreManager *mgr);
 int linphone_core_manager_get_mean_video_down_bw(const LinphoneCoreManager *mgr);
 int linphone_core_manager_get_mean_video_up_bw(const LinphoneCoreManager *mgr);
 
-void video_call_base_2(LinphoneCoreManager *pauline,
-                       LinphoneCoreManager *marie,
+void video_call_base_2(LinphoneCoreManager *caller,
+                       LinphoneCoreManager *callee,
                        bool_t using_policy,
                        LinphoneMediaEncryption mode,
                        bool_t callee_video_enabled,

@@ -378,8 +378,8 @@ bool NatPolicy::processJsonConfigurationResponse(const std::shared_ptr<NatPolicy
 			if (firstUri->isString()) {
 				auto uri = firstUri->asString();
 				/* This regex pattern extracts the part after "turn:" and before "?" in a TURN URI.
-				 * ^turn:      -> Matches the literal "turn:" at the beginning of the string.
-				 * ([^?]+)     -> Captures everything after "turn:" up to (but not including) the first "?".
+				 * ^turn:	-> Matches the literal "turn:" at the beginning of the string.
+				 * ([^?]+)	-> Captures everything after "turn:" up to (but not including) the first "?".
 				 * The captured group (match[1]) contains the desired hostname and port.
 				 * */
 				std::regex pattern(R"(^turn:([^?]+))");
@@ -406,6 +406,8 @@ void NatPolicy::updateTurnConfiguration(const std::function<void(bool)> &complet
 		mCompletionRoutine = completionRoutine;
 		auto &httpClient = getCore()->getHttpClient();
 		auto &httpRequest = httpClient.createRequest("GET", mTurnConfigurationEndpoint);
+		httpRequest.addHeader("content-type", "application/json");
+		httpRequest.addHeader("accept", "application/json");
 
 		std::weak_ptr<NatPolicy> natPolicyRef = shared_from_this();
 		httpRequest.execute([natPolicyRef](const HttpResponse &response) -> void {

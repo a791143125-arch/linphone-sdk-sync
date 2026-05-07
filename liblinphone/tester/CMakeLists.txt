@@ -301,7 +301,6 @@ set(SOURCE_FILES_C
 	session_timers_tester.c
 	setup_tester.c
 	shared_core_tester.c
-	stun_tester.c
 	tunnel_tester.c
 	video_quality_tester.c
 	video_tester.c
@@ -356,7 +355,7 @@ set(SOURCE_FILES_CXX
 	local-secure-chat-tester.cpp
 	local-ephemeral-chat-tester.cpp
 	potential_configuration_tester.cpp
-	turn-server-tester.cpp
+	stun-turn-tester.cpp
 	vcard_tester.cpp
 	vfs-encryption-tester.cpp
 	bearer-auth.cpp

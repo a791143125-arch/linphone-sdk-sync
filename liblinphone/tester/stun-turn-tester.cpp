@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2022 Belledonne Communications SARL.
+ * Copyright (c) 2010-2025 Belledonne Communications SARL.
  *
  * This file is part of Liblinphone
  * (see https://gitlab.linphone.org/BC/public/liblinphone).
@@ -18,18 +18,96 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mediastreamer2/stun.h"
+#include "bctoolbox/defs.h"
+#include "belle_sip_tester_utils.h"
 
-#include "ortp/port.h"
-
+#include "liblinphone_tester++.h"
 #include "liblinphone_tester.h"
-#include "linphone/api/c-auth-info.h"
-#include "linphone/api/c-nat-policy.h"
-#include "linphone/core.h"
 #include "shared_tester_functions.h"
-#include "tester_utils.h"
 
-static const char *stun_address = "stun.example.org";
+const std::string endpoint = "http://fs-test-sandbox-3.linphone.org/flexiapi/api/accounts/me/services/turn";
+
+static void configure_nat_policy_with_turn(const LinphoneCoreManager *core_manager) {
+	LinphoneNatPolicy *nat_policy = linphone_core_create_nat_policy(core_manager->lc);
+	linphone_nat_policy_enable_turn(nat_policy, TRUE);
+	linphone_nat_policy_enable_ice(nat_policy, TRUE);
+	linphone_nat_policy_enable_stun(nat_policy, TRUE);
+	linphone_nat_policy_set_turn_configuration_endpoint(nat_policy, endpoint.c_str());
+
+	const auto default_account = linphone_core_get_default_account(core_manager->lc);
+	const LinphoneAccountParams *account_params = linphone_account_get_params(default_account);
+	LinphoneAccountParams *new_account_params = linphone_account_params_clone(account_params);
+	linphone_account_params_set_nat_policy(new_account_params, nat_policy);
+	linphone_account_set_params(default_account, new_account_params);
+
+	linphone_account_params_unref(new_account_params);
+	linphone_nat_policy_unref(nat_policy);
+}
+
+static void check_turn_username_password(const LinphoneCoreManager *core_manager,
+                                         const std::string &username,
+                                         const std::string &password) {
+	const auto auth_infos = linphone_core_get_auth_info_list(core_manager->lc);
+	BC_ASSERT_PTR_NOT_NULL(auth_infos);
+	if (BC_ASSERT_PTR_NOT_NULL(auth_infos)) {
+		bool usernameFound = false;
+		bool passwordFound = false;
+		for (auto auth_info = auth_infos; auth_info != nullptr; auth_info = auth_info->next) {
+			if (strcmp(linphone_auth_info_get_username(static_cast<const LinphoneAuthInfo *>(auth_info->data)),
+			           username.c_str()) == 0) {
+				usernameFound = true;
+			}
+			if (strcmp(linphone_auth_info_get_password(static_cast<const LinphoneAuthInfo *>(auth_info->data)),
+			           password.c_str()) == 0) {
+				passwordFound = true;
+			}
+		}
+		BC_ASSERT_TRUE(usernameFound);
+		BC_ASSERT_TRUE(passwordFound);
+	}
+}
+
+void update_turn_configuration_test() {
+	const std::string username = "liblinphone-tester";
+	const std::string password = "retset-enohpnilbil";
+
+	LinphoneCoreManager *marie = linphone_core_manager_new("marie_rc");
+	LinphoneCoreManager *pauline =
+	    linphone_core_manager_new(transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc");
+
+	configure_nat_policy_with_turn(marie);
+	configure_nat_policy_with_turn(pauline);
+
+	linphone_core_enable_forced_ice_relay(marie->lc, TRUE);
+	linphone_core_enable_forced_ice_relay(pauline->lc, TRUE);
+
+	if (!BC_ASSERT_TRUE(call(pauline, marie))) return;
+
+	/*wait for the ICE reINVITE to complete*/
+	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &pauline->stat.number_of_LinphoneCallStreamsRunning, 2));
+	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &marie->stat.number_of_LinphoneCallStreamsRunning, 2));
+
+	BC_ASSERT_TRUE(check_ice(pauline, marie, LinphoneIceStateRelayConnection));
+
+	check_nb_media_starts(AUDIO_START, pauline, marie, 1, 1);
+
+	liblinphone_tester_check_rtcp(marie, pauline);
+
+	check_turn_username_password(marie, username, password);
+	check_turn_username_password(pauline, username, password);
+
+	/*then close the call*/
+	end_call(pauline, marie);
+
+	wait_for_until(marie->lc, pauline->lc, nullptr, 1, liblinphone_tester_sip_timeout);
+	BC_ASSERT_PTR_NULL(linphone_core_find_auth_info(marie->lc, nullptr, "liblinphone-tester", nullptr));
+	BC_ASSERT_PTR_NULL(linphone_core_find_auth_info(pauline->lc, nullptr, "liblinphone-tester", nullptr));
+
+	linphone_core_manager_destroy(marie);
+	linphone_core_manager_destroy(pauline);
+}
+
+static auto stun_address = "stun.example.org";
 
 typedef struct _CallConfig {
 	bool_t video_enabled;
@@ -54,33 +132,33 @@ static size_t test_stun_encode(char **buffer) {
 	UInt96 tr_id = ms_stun_message_get_tr_id(req);
 	tr_id.octet[0] = 11;
 	ms_stun_message_set_tr_id(req, tr_id);
-	size_t size = ms_stun_message_encode(req, buffer);
+	const size_t size = ms_stun_message_encode(req, buffer);
 	ms_stun_message_destroy(req);
 	return size;
 }
 
-static void linphone_stun_test_encode(void) {
-	char *buffer = NULL;
-	size_t len = test_stun_encode(&buffer);
+static void linphone_stun_test_encode() {
+	char *buffer = nullptr;
+	const size_t len = test_stun_encode(&buffer);
 	BC_ASSERT(len > 0);
 	BC_ASSERT_PTR_NOT_NULL(buffer);
-	if (buffer != NULL) ms_free(buffer);
-	ms_message("STUN message encoded in %i bytes", (int)len);
+	if (buffer != nullptr) ms_free(buffer);
+	ms_message("STUN message encoded in %i bytes", static_cast<int>(len));
 }
 
-static void linphone_stun_test_grab_ip(void) {
+static void linphone_stun_test_grab_ip() {
 	LinphoneCoreManager *lc_stun = linphone_core_manager_new_with_proxies_check("stun_rc", FALSE);
 	int ping_time;
 	int tmp = 0;
-	char audio_addr[LINPHONE_IPADDR_SIZE] = {0};
-	char video_addr[LINPHONE_IPADDR_SIZE] = {0};
-	char text_addr[LINPHONE_IPADDR_SIZE] = {0};
+	char audio_addr[LINPHONE_IPADDR_SIZE] = {};
+	char video_addr[LINPHONE_IPADDR_SIZE] = {};
+	char text_addr[LINPHONE_IPADDR_SIZE] = {};
 	int audio_port = 0;
 	int video_port = 0;
 	int text_port = 0;
 
 	/* This test verifies the very basic STUN support of liblinphone, which is deprecated.
-	 * It works only in IPv4 mode and there is no plan to make it work over ipv6. */
+	 * It works only in IPv4 mode, and there is no plan to make it work over ipv6. */
 	if (liblinphone_tester_ipv4_available()) goto end;
 	linphone_core_enable_ipv6(lc_stun->lc, FALSE);
 	linphone_core_enable_realtime_text(lc_stun->lc, TRUE);
@@ -114,45 +192,34 @@ end:
 }
 
 static void
-configure_nat_policy(LinphoneCore *lc, bool_t turn_enabled, bool_t turn_tcp, bool_t turn_tls, bool_t wrong_password) {
-	const char *username = "liblinphone-tester";
-	const char *password = wrong_password ? "wrong_password " : "retset-enohpnilbil";
-	LinphoneAuthInfo *auth_info =
-	    linphone_core_create_auth_info(lc, username, NULL, password, NULL, "sip.linphone.org", NULL);
+configure_nat_policy(LinphoneCore *lc, const bool_t turn_enabled, const bool_t turn_tcp, const bool_t turn_tls) {
 	LinphoneNatPolicy *nat_policy = linphone_core_create_nat_policy(lc);
 	linphone_nat_policy_enable_ice(nat_policy, TRUE);
 	if (turn_enabled) {
 		linphone_nat_policy_enable_turn(nat_policy, TRUE);
-		linphone_nat_policy_set_stun_server(nat_policy,
-		                                    "sip1.linphone.org:3479"); // This is our unofficial turn server.
-		/* When the turn server is incorporated in flexisip-tester, use turn.example.org . */
-		linphone_nat_policy_set_stun_server_username(nat_policy, username);
+		linphone_nat_policy_enable_stun(nat_policy, TRUE);
+		linphone_nat_policy_set_turn_configuration_endpoint(nat_policy, endpoint.c_str());
 		if (turn_tcp) {
 			linphone_nat_policy_enable_tcp_turn_transport(nat_policy, TRUE);
 		} else if (turn_tls) {
-			linphone_nat_policy_set_stun_server(nat_policy, "sip1.linphone.org:5349");
 			linphone_nat_policy_enable_tls_turn_transport(nat_policy, TRUE);
 		}
 	} else {
 		linphone_nat_policy_enable_stun(nat_policy, TRUE);
-		/* We intentionnaly do not use stun.example.org. When both liblinphone_tester and flexisip are in the same local
-		 * network it will break the test "Relayed ICE+TURN to ICE+STUN call", because:
-		 * - the TURN client will use the public sip1.linphone.org TURN server
-		 * - the STUN client will use the local stun server and hence will discover a local address.
-		 * When the TURN client will create PERMISSIONS, they will be created for the local address which are not
-		 * routable from the TURN server standpoint.
-		 * TODO: the good solution would be to setup the coturn server in the flexisip-tester environment.
-		 */
-		linphone_nat_policy_set_stun_server(nat_policy, "sip1.linphone.org:3479");
 	}
-	linphone_core_set_nat_policy(lc, nat_policy);
-	linphone_core_add_auth_info(lc, auth_info);
+	const auto default_account = linphone_core_get_default_account(lc);
+	const LinphoneAccountParams *account_params = linphone_account_get_params(default_account);
+	LinphoneAccountParams *new_account_params = linphone_account_params_clone(account_params);
+	linphone_account_params_set_nat_policy(new_account_params, nat_policy);
+	linphone_account_set_params(default_account, new_account_params);
+
+	linphone_account_params_unref(new_account_params);
 	linphone_nat_policy_unref(nat_policy);
-	linphone_auth_info_unref(auth_info);
 }
 
-static void
-check_turn_context_statistics(MSTurnContext *turn_context1, MSTurnContext *turn_context2, bool_t forced_relay) {
+static void check_turn_context_statistics(const MSTurnContext *turn_context1,
+                                          const MSTurnContext *turn_context2,
+                                          const bool_t forced_relay) {
 	BC_ASSERT_TRUE(turn_context1->stats.nb_successful_allocate > 0);
 	if (turn_context2) BC_ASSERT_TRUE(turn_context2->stats.nb_successful_allocate > 0);
 	if (forced_relay == TRUE) {
@@ -174,17 +241,17 @@ check_turn_context_statistics(MSTurnContext *turn_context1, MSTurnContext *turn_
 }
 
 static void ice_turn_call_base(const CallConfig *config) {
-	LinphoneCoreManager *marie;
-	LinphoneCoreManager *pauline;
-	LinphoneCall *lcall;
 	LinphoneIceState expected_ice_state = LinphoneIceStateHostConnection;
 	LinphoneMediaDirection expected_video_dir = LinphoneMediaDirectionInactive;
-	bctbx_list_t *lcs = NULL;
-	IceCheckList *cl1 = NULL, *cl2 = NULL;
+	bctbx_list_t *lcs = nullptr;
+	const IceCheckList *cl1 = nullptr;
+	const IceCheckList *cl2 = nullptr;
 
-	marie = linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "marie_sips_rc" : "marie_rc");
+	LinphoneCoreManager *marie =
+	    linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "marie_sips_rc" : "marie_rc");
 	lcs = bctbx_list_append(lcs, marie->lc);
-	pauline = linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc");
+	LinphoneCoreManager *pauline =
+	    linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc");
 	lcs = bctbx_list_append(lcs, pauline->lc);
 
 	if (config->ipv6) {
@@ -199,10 +266,8 @@ static void ice_turn_call_base(const CallConfig *config) {
 	linphone_config_set_int(linphone_core_get_config(pauline->lc), "sip", "update_call_when_ice_completed_with_dtls",
 	                        1);
 
-	configure_nat_policy(marie->lc, config->caller_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
-	configure_nat_policy(pauline->lc, config->callee_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
+	configure_nat_policy(marie->lc, config->caller_turn_enabled, config->turn_tcp, config->turn_tls);
+	configure_nat_policy(pauline->lc, config->callee_turn_enabled, config->turn_tcp, config->turn_tls);
 	if (config->forced_relay == TRUE) {
 		linphone_core_enable_forced_ice_relay(marie->lc, TRUE);
 		linphone_core_enable_forced_ice_relay(pauline->lc, TRUE);
@@ -258,23 +323,23 @@ static void ice_turn_call_base(const CallConfig *config) {
 	check_media_direction(pauline, linphone_core_get_current_call(pauline->lc), lcs, LinphoneMediaDirectionSendRecv,
 	                      expected_video_dir);
 	liblinphone_tester_check_rtcp(marie, pauline);
-	lcall = linphone_core_get_current_call(marie->lc);
-	BC_ASSERT_PTR_NOT_NULL(lcall);
-	if (lcall != NULL) {
-		IceSession *ice_session = linphone_call_get_ice_session(lcall);
+	const LinphoneCall *marie_call = linphone_core_get_current_call(marie->lc);
+	BC_ASSERT_PTR_NOT_NULL(marie_call);
+	if (marie_call != nullptr) {
+		const IceSession *ice_session = linphone_call_get_ice_session(marie_call);
 		BC_ASSERT_PTR_NOT_NULL(ice_session);
-		if (ice_session != NULL) {
+		if (ice_session != nullptr) {
 			cl1 = ice_session_check_list(ice_session, 0);
 			BC_ASSERT_PTR_NOT_NULL(cl1);
 		}
 	}
-	lcall = linphone_core_get_current_call(pauline->lc);
-	BC_ASSERT_PTR_NOT_NULL(lcall);
-	if (lcall != NULL) {
-		IceSession *ice_session = linphone_call_get_ice_session(lcall);
-		BC_ASSERT_PTR_NOT_NULL(ice_session);
-		if (ice_session != NULL) {
-			cl2 = ice_session_check_list(ice_session, 0);
+	marie_call = linphone_core_get_current_call(pauline->lc);
+	BC_ASSERT_PTR_NOT_NULL(marie_call);
+	if (marie_call != nullptr) {
+		const IceSession *ice_session2 = linphone_call_get_ice_session(marie_call);
+		BC_ASSERT_PTR_NOT_NULL(ice_session2);
+		if (ice_session2 != nullptr) {
+			cl2 = ice_session_check_list(ice_session2, 0);
 			BC_ASSERT_PTR_NOT_NULL(cl2);
 		}
 	}
@@ -296,7 +361,7 @@ static void ice_turn_call_base(const CallConfig *config) {
 	bctbx_list_free(lcs);
 }
 
-static void basic_ice_turn_call(void) {
+static void basic_ice_turn_call() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.caller_turn_enabled = TRUE;
@@ -304,9 +369,9 @@ static void basic_ice_turn_call(void) {
 	ice_turn_call_base(&cfg);
 }
 
-/* In this test, TURN won't finally be used because of wrong password. This checks that in this case
+/* In this test, TURN won't finally be used because of the wrong password. This checks that in this case
  * all goes well with ICE and things terminate properly.*/
-static void basic_ice_turn_call_wrong_password(void) {
+static void basic_ice_turn_call_wrong_password() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.caller_turn_enabled = TRUE;
@@ -315,7 +380,7 @@ static void basic_ice_turn_call_wrong_password(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void basic_ipv6_ice_turn_call(void) {
+static void basic_ipv6_ice_turn_call() {
 	if (liblinphone_tester_ipv6_available()) {
 		CallConfig cfg;
 		call_config_init(&cfg);
@@ -328,7 +393,7 @@ static void basic_ipv6_ice_turn_call(void) {
 	}
 }
 
-static void basic_ice_turn_call_tcp(void) {
+static void basic_ice_turn_call_tcp() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.caller_turn_enabled = TRUE;
@@ -337,7 +402,7 @@ static void basic_ice_turn_call_tcp(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void basic_ice_turn_call_tls(void) {
+static void basic_ice_turn_call_tls() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.caller_turn_enabled = TRUE;
@@ -347,7 +412,7 @@ static void basic_ice_turn_call_tls(void) {
 }
 
 #ifdef VIDEO_ENABLED
-static void video_ice_turn_call(void) {
+static void video_ice_turn_call() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.video_enabled = TRUE;
@@ -355,39 +420,8 @@ static void video_ice_turn_call(void) {
 	cfg.callee_turn_enabled = TRUE;
 	ice_turn_call_base(&cfg);
 }
-#endif
 
-static void relayed_ice_turn_call(void) {
-	CallConfig cfg;
-	call_config_init(&cfg);
-	cfg.forced_relay = TRUE;
-	cfg.caller_turn_enabled = TRUE;
-	cfg.callee_turn_enabled = TRUE;
-	ice_turn_call_base(&cfg);
-}
-
-static void relayed_ice_turn_call_with_tcp(void) {
-	CallConfig cfg;
-	call_config_init(&cfg);
-	cfg.forced_relay = TRUE;
-	cfg.caller_turn_enabled = TRUE;
-	cfg.callee_turn_enabled = TRUE;
-	cfg.turn_tcp = TRUE;
-	ice_turn_call_base(&cfg);
-}
-
-static void relayed_ice_turn_call_with_tls(void) {
-	CallConfig cfg;
-	call_config_init(&cfg);
-	cfg.forced_relay = TRUE;
-	cfg.caller_turn_enabled = TRUE;
-	cfg.callee_turn_enabled = TRUE;
-	cfg.turn_tls = TRUE;
-	ice_turn_call_base(&cfg);
-}
-
-#ifdef VIDEO_ENABLED
-static void relayed_video_ice_turn_call(void) {
+static void relayed_video_ice_turn_call() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.video_enabled = TRUE;
@@ -398,7 +432,36 @@ static void relayed_video_ice_turn_call(void) {
 }
 #endif
 
-static void relayed_ice_turn_call_with_rtcp_mux(void) {
+static void relayed_ice_turn_call() {
+	CallConfig cfg;
+	call_config_init(&cfg);
+	cfg.forced_relay = TRUE;
+	cfg.caller_turn_enabled = TRUE;
+	cfg.callee_turn_enabled = TRUE;
+	ice_turn_call_base(&cfg);
+}
+
+static void relayed_ice_turn_call_with_tcp() {
+	CallConfig cfg;
+	call_config_init(&cfg);
+	cfg.forced_relay = TRUE;
+	cfg.caller_turn_enabled = TRUE;
+	cfg.callee_turn_enabled = TRUE;
+	cfg.turn_tcp = TRUE;
+	ice_turn_call_base(&cfg);
+}
+
+static void relayed_ice_turn_call_with_tls() {
+	CallConfig cfg;
+	call_config_init(&cfg);
+	cfg.forced_relay = TRUE;
+	cfg.caller_turn_enabled = TRUE;
+	cfg.callee_turn_enabled = TRUE;
+	cfg.turn_tls = TRUE;
+	ice_turn_call_base(&cfg);
+}
+
+static void relayed_ice_turn_call_with_rtcp_mux() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -407,7 +470,7 @@ static void relayed_ice_turn_call_with_rtcp_mux(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void relayed_ice_turn_to_ice_stun_call(void) {
+static void relayed_ice_turn_to_ice_stun_call() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -415,7 +478,7 @@ static void relayed_ice_turn_to_ice_stun_call(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void relayed_ice_turn_call_with_srtp(void) {
+static void relayed_ice_turn_call_with_srtp() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -424,7 +487,7 @@ static void relayed_ice_turn_call_with_srtp(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void relayed_ice_turn_tls_with_srtp(void) {
+static void relayed_ice_turn_tls_with_srtp() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -435,7 +498,7 @@ static void relayed_ice_turn_tls_with_srtp(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void relayed_ice_turn_tls_to_ice_with_srtp(void) {
+static void relayed_ice_turn_tls_to_ice_with_srtp() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -446,7 +509,7 @@ static void relayed_ice_turn_tls_to_ice_with_srtp(void) {
 	ice_turn_call_base(&cfg);
 }
 
-static void relayed_ice_turn_to_ice_with_dtls_srtp(void) {
+static void relayed_ice_turn_to_ice_with_dtls_srtp() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -460,17 +523,15 @@ static void relayed_ice_turn_to_ice_with_dtls_srtp(void) {
  * the handshake is started immediately after ICE has successfully verified the relay pair.
  */
 static void _ice_turn_dtls_call(const CallConfig *config) {
-	LinphoneCoreManager *marie;
-	LinphoneCoreManager *pauline;
-	LinphoneCall *lcall;
 	LinphoneIceState expected_ice_state = LinphoneIceStateHostConnection;
-	bctbx_list_t *lcs = NULL;
-	int attempts;
+	bctbx_list_t *lcs = nullptr;
 	bool_t dtls_started_as_expected = FALSE;
 
-	marie = linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "marie_sips_rc" : "marie_rc");
+	LinphoneCoreManager *marie =
+	    linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "marie_sips_rc" : "marie_rc");
 	lcs = bctbx_list_append(lcs, marie->lc);
-	pauline = linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc");
+	LinphoneCoreManager *pauline =
+	    linphone_core_manager_create(transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc");
 	lcs = bctbx_list_append(lcs, pauline->lc);
 
 	if (config->ipv6) {
@@ -485,10 +546,8 @@ static void _ice_turn_dtls_call(const CallConfig *config) {
 	linphone_config_set_int(linphone_core_get_config(pauline->lc), "sip", "update_call_when_ice_completed_with_dtls",
 	                        1);
 
-	configure_nat_policy(marie->lc, config->caller_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
-	configure_nat_policy(pauline->lc, config->callee_turn_enabled, config->turn_tcp, config->turn_tls,
-	                     config->wrong_password);
+	configure_nat_policy(marie->lc, config->caller_turn_enabled, config->turn_tcp, config->turn_tls);
+	configure_nat_policy(pauline->lc, config->callee_turn_enabled, config->turn_tcp, config->turn_tls);
 	if (config->forced_relay == TRUE) {
 		linphone_core_enable_forced_ice_relay(marie->lc, TRUE);
 		linphone_core_enable_forced_ice_relay(pauline->lc, TRUE);
@@ -526,31 +585,31 @@ static void _ice_turn_dtls_call(const CallConfig *config) {
 
 	linphone_core_invite_address(marie->lc, pauline->identity);
 	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &pauline->stat.number_of_LinphoneCallIncomingReceived, 1));
-	lcall = linphone_core_get_current_call(pauline->lc);
-	BC_ASSERT_PTR_NOT_NULL(lcall);
-	if (!lcall) {
+	LinphoneCall *pauline_call = linphone_core_get_current_call(pauline->lc);
+	BC_ASSERT_PTR_NOT_NULL(pauline_call);
+	if (!pauline_call) {
 		goto end;
 	}
-	linphone_call_accept(lcall);
+	linphone_call_accept(pauline_call);
 	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &pauline->stat.number_of_LinphoneCallConnected, 1));
 	BC_ASSERT_TRUE(wait_for(pauline->lc, marie->lc, &marie->stat.number_of_LinphoneCallConnected, 1));
-	/* Pauline shall not start dtls until the check list has verified the default pair */
-	for (attempts = 0; attempts < 100; ++attempts) {
-		const LinphoneStreamInternalStats *istats =
-		    _linphone_call_get_stream_internal_stats(lcall, LinphoneStreamTypeAudio);
-		BC_ASSERT_PTR_NOT_NULL(istats);
-		if (!istats) break;
-		if (istats->number_of_ice_check_list_relay_pair_verified == 0) {
-			BC_ASSERT_TRUE(istats->number_of_dtls_starts == 0);
+	/* Pauline shall not start dtls until the checklist has verified the default pair */
+	for (int attempts = 0; attempts < 100; ++attempts) {
+		const LinphoneStreamInternalStats *internal_stats =
+		    _linphone_call_get_stream_internal_stats(pauline_call, LinphoneStreamTypeAudio);
+		BC_ASSERT_PTR_NOT_NULL(internal_stats);
+		if (!internal_stats) break;
+		if (internal_stats->number_of_ice_check_list_relay_pair_verified == 0) {
+			BC_ASSERT_TRUE(internal_stats->number_of_dtls_starts == 0);
 		} else {
 			/* relay pair verified */
-			if (BC_ASSERT_TRUE(istats->number_of_dtls_starts == 1)) {
+			if (BC_ASSERT_TRUE(internal_stats->number_of_dtls_starts == 1)) {
 				dtls_started_as_expected = TRUE;
-				BC_ASSERT_TRUE(istats->number_of_ice_check_list_processing_finished == 0);
+				BC_ASSERT_TRUE(internal_stats->number_of_ice_check_list_processing_finished == 0);
 				break;
 			}
 		}
-		wait_for_list(lcs, NULL, 0, 10); /* the timer must be short so that ice_check list does not finish */
+		wait_for_list(lcs, nullptr, 0, 10); /* the timer must be short so that ice_check list does not finish */
 	}
 	BC_ASSERT_TRUE(dtls_started_as_expected);
 
@@ -572,7 +631,7 @@ end:
 	bctbx_list_free(lcs);
 }
 
-static void relayed_ice_turn_to_turn_with_dtls_srtp(void) {
+static void relayed_ice_turn_to_turn_with_dtls_srtp() {
 	CallConfig cfg;
 	call_config_init(&cfg);
 	cfg.forced_relay = TRUE;
@@ -583,7 +642,7 @@ static void relayed_ice_turn_to_turn_with_dtls_srtp(void) {
 	_ice_turn_dtls_call(&cfg);
 }
 
-static test_t stun_tests[] = {
+static test_t stun_turn_tests[] = {
     TEST_ONE_TAG("Basic Stun test (Ping/public IP)", linphone_stun_test_grab_ip, "STUN"),
     TEST_ONE_TAG("STUN encode", linphone_stun_test_encode, "STUN"),
     TEST_TWO_TAGS("Basic ICE+TURN call", basic_ice_turn_call, "ICE", "TURN"),
@@ -605,13 +664,14 @@ static test_t stun_tests[] = {
     TEST_TWO_TAGS("Relayed ICE+TURN TLS call to ICE with SRTP", relayed_ice_turn_tls_to_ice_with_srtp, "ICE", "TURN"),
     TEST_TWO_TAGS("Relayed ICE+TURN call to ICE with DTLS-SRTP", relayed_ice_turn_to_ice_with_dtls_srtp, "ICE", "TURN"),
     TEST_TWO_TAGS(
-        "Relayed ICE+TURN relayed call with DTLS-SRTP", relayed_ice_turn_to_turn_with_dtls_srtp, "ICE", "TURN")};
+        "Relayed ICE+TURN relayed call with DTLS-SRTP", relayed_ice_turn_to_turn_with_dtls_srtp, "ICE", "TURN"),
+    TEST_NO_TAG("Update TURN configuration", update_turn_configuration_test)};
 
-test_suite_t stun_test_suite = {"Stun",
-                                NULL,
-                                NULL,
-                                liblinphone_tester_before_each,
-                                liblinphone_tester_after_each,
-                                sizeof(stun_tests) / sizeof(stun_tests[0]),
-                                stun_tests,
-                                0};
+test_suite_t stun_turn_test_suite = {"STUN/TURN",
+                                     nullptr,
+                                     nullptr,
+                                     liblinphone_tester_before_each,
+                                     liblinphone_tester_after_each,
+                                     sizeof(stun_turn_tests) / sizeof(stun_turn_tests[0]),
+                                     stun_turn_tests,
+                                     0};

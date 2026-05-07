@@ -21,7 +21,6 @@
 #include "bctoolbox/defs.h"
 
 #include "linphone/core.h"
-#include "linphone/logging.h"
 
 #include "tester_utils.h"
 
@@ -587,7 +586,7 @@ void liblinphone_tester_add_suites(void) {
 #ifdef HAVE_FLEXIAPI
 	liblinphone_tester_add_suite_with_default_time(&flexiapiclient_suite, 4);
 #endif
-	liblinphone_tester_add_suite_with_default_time(&stun_test_suite, 259);
+	liblinphone_tester_add_suite_with_default_time(&stun_turn_test_suite, 259);
 	liblinphone_tester_add_suite_with_default_time(&event_test_suite, 70);
 #if defined(HAVE_ADVANCED_IM) && defined(HAVE_XERCESC)
 	liblinphone_tester_add_suite_with_default_time(&conference_event_test_suite, 32);
@@ -640,7 +639,6 @@ void liblinphone_tester_add_suites(void) {
 	bc_tester_add_suite(&bearer_auth_test_suite);
 	bc_tester_add_suite(&call_twisted_cases_suite);
 	bc_tester_add_suite(&http_client_test_suite);
-	bc_tester_add_suite(&turn_server_test_suite);
 	bc_tester_add_suite(&dtmf_test_suite);
 }
 
