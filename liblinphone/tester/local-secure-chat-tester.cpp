@@ -2935,6 +2935,10 @@ static void secure_group_chat_room_with_duplications(void) {
 	group_chat_room_with_duplications_base(true);
 }
 
+static void legacy_secure_group_chat_migration(void) {
+	legacy_chat_room_migration_base(true);
+}
+
 } // namespace LinphoneTest
 
 static test_t local_conference_secure_chat_tests[] = {
@@ -3053,6 +3057,7 @@ static test_t local_conference_secure_chat_tests[] = {
                 LinphoneTest::secure_group_chat_room_with_client_removed_and_reinvinted),
     TEST_NO_TAG("Secure group chat with client removed and then reinvited after database corruption",
                 LinphoneTest::secure_group_chat_room_with_client_removed_and_reinvinted_after_database_corruption),
+    TEST_NO_TAG("Legacy secure group chat migration", LinphoneTest::legacy_secure_group_chat_migration),
     TEST_ONE_TAG(
         "Secure group chat with client removed and then reinvited after database corruption and core restart",
         LinphoneTest::

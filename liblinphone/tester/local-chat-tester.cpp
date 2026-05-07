@@ -5387,6 +5387,9 @@ static void group_chat_room_just_below_participant_threshold(void) {
 	group_chat_room_with_small_number_of_participants_allowed_base(5);
 }
 
+static void legacy_group_chat_migration(void) {
+	legacy_chat_room_migration_base(false);
+}
 } // namespace LinphoneTest
 
 static test_t local_conference_chat_basic_tests[] = {
@@ -5498,6 +5501,7 @@ static test_t local_conference_chat_advanced_tests[] = {
                 LinphoneTest::group_chat_room_participant_addition_failed_due_to_too_many_participants),
     TEST_NO_TAG("Group chat just below participant threshold",
                 LinphoneTest::group_chat_room_just_below_participant_threshold),
+    TEST_NO_TAG("Legacy group chat migration", LinphoneTest::legacy_group_chat_migration),
     TEST_ONE_TAG(
         "Group chat with client removed and then reinvited after database corruption and core restart",
         LinphoneTest::group_chat_room_with_client_removed_and_reinvinted_after_database_corruption_and_core_restart,
