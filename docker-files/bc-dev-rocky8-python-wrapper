@@ -17,7 +17,7 @@ RUN dnf install -y epel-release && \
 RUN dnf -y install ccache cmake yasm nasm doxygen gcc clang meson ninja-build perl && \
     dnf -y clean all
 
-RUN dnf -y install ccache openssh openssh-clients git alsa-lib-devel pulseaudio-libs-devel libv4l-devel mysql-devel sqlite-devel && \
+RUN dnf -y install ccache openssh openssh-clients git alsa-lib-devel pulseaudio-libs-devel libv4l-devel mariadb-connector-c-devel sqlite-devel && \
     dnf -y clean all
 
 # Install gcc toolset 12
