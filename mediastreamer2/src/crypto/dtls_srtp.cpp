@@ -25,6 +25,7 @@
 
 #include "mediastreamer2/dtls_srtp.h"
 #include "mediastreamer2/mediastream.h"
+#include "private.h"
 
 #ifdef _WIN32
 #include <malloc.h>
@@ -601,6 +602,8 @@ void MSDtlsSrtpContext::setChannelStatus(DtlsStatus status, MSDtlsError error) {
 		ms_message("DTLS Event dispatched to all: secrets are on for this stream");
 	}
 	if (status == DtlsStatus::HandshakeFailed) {
+		ms_media_stream_sessions_set_encryption_status(mStreamSessions, MediaStreamSendRecv,
+		                                               MSMediaEncryptionStatusFailed);
 		OrtpEventData *eventData;
 		OrtpEvent *ev;
 		ev = ortp_event_new(ORTP_EVENT_DTLS_ENCRYPTION_CHANGED);
@@ -984,6 +987,8 @@ extern "C" void ms_dtls_srtp_start(MSDtlsSrtpContext *context) {
 	}
 	std::lock_guard<std::mutex> lock(context->mtx);
 	context->start();
+	ms_media_stream_sessions_set_encryption_status(context->mStreamSessions, MediaStreamSendRecv,
+	                                               MSMediaEncryptionStatusInProgress);
 }
 
 extern "C" void ms_dtls_srtp_context_destroy(MSDtlsSrtpContext *ctx) {
