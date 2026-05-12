@@ -11,6 +11,50 @@ recache-rocky8:
   extends: .recache-update-cache
   image: !reference [ .rocky8_image_version, image ]
 
+wait-cache-synchro-rocky8-python-wheel:
+  extends: .wait-cache-synchro
+  stage: prior-wait-cache-synchro
+  variables:
+    BUILD_SUBTYPE: rocky8-python-wheel
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SKIP_LINUX == null
+    - !reference [.rules-merge-request-manual, rules]
+
+recache-rocky8-python-wheel:
+  extends: .recache-update-cache
+  allow_failure: true
+  image: !reference [ .rocky8_python_wrapper_image_version, image ]
+
+wait-cache-synchro-rocky8-ninja-gcc-tunnel-pq-h264-ekt:
+  extends: .wait-cache-synchro
+  stage: prior-wait-cache-synchro
+  variables:
+    BUILD_SUBTYPE: rocky8-ninja-gcc-tunnel-pq-h264-ekt
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SKIP_LINUX == null
+    - !reference [ .wait-cache-synchro, rules ]
+
+recache-rocky8-ninja-gcc-tunnel-pq-h264-ekt:
+  extends: .recache-update-cache
+  image: !reference [ .rocky8_image_version, image ]
+  variables:
+    CACHE_JOB_NAME: rocky8-ninja-gcc-tunnel-pq-h264-ekt
+
+wait-cache-synchro-rocky8-ninja-clang-mysql:
+  extends: .wait-cache-synchro
+  stage: prior-wait-cache-synchro
+  variables:
+    BUILD_SUBTYPE: rocky8-ninja-clang-mysql
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SKIP_LINUX == null
+    - !reference [ .wait-cache-synchro, rules ]
+
+recache-rocky8-ninja-clang-mysql:
+  extends: .recache-update-cache
+  image: !reference [ .rocky8_image_version, image ]
+  variables:
+    CACHE_JOB_NAME: rocky8-ninja-clang-mysql
+
 #Build template to use in other job scripts without having to copy same code
 #format = .className: &referenceName
 #Use = "<< *referenceName" to use the template ("-*" in script)
@@ -398,8 +442,8 @@ linphone-sdk-rocky8-coverage-mr:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
     COVERED_LIBRARIES: >
-      -object=coverage/libbelr.so.1 
-      -object=coverage/libbelcard.so.1 
+      -object=coverage/libbelr.so.1
+      -object=coverage/libbelcard.so.1
       -object=coverage/liblinphone.so.10
 
 linphone-sdk-rocky8-coverage:
@@ -413,8 +457,8 @@ linphone-sdk-rocky8-coverage:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $ALL_LINUX_BUILDS != null && $SKIP_LINUX == null
   variables:
     COVERED_LIBRARIES: >
-      -object=coverage/libbelr.so.1 
-      -object=coverage/libbelcard.so.1 
+      -object=coverage/libbelr.so.1
+      -object=coverage/libbelcard.so.1
       -object=coverage/liblinphone.so.10
 
 liblinphone-rocky8-test-mr-pq-h264-ekt:
