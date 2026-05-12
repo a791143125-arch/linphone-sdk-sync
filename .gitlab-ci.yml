@@ -123,7 +123,6 @@ stages:
  - deploy
  - email-notif
 
-
 # wait-cache are stage synchronized because they have not the 'needs' keyword.
 # As other jobs depend on them, they will run after there are completed ; Next jobs don't depend on the stage.
 # So the goal of Prior-* is to run prioritized jobs first to unlock other jobs before unprioritized.
