@@ -13,7 +13,7 @@ recache-get-from-branch:
     - if: $CI_COMMIT_BRANCH =~ /^release/ && $CI_PIPELINE_SOURCE == "push"
     - if: $CI_COMMIT_BRANCH == "fix/5.4_recache_jobs" && $CI_PIPELINE_SOURCE == "push"
   script:
-    - curl --verbose --location --request GET "https://gitlab.linphone.org/api/v4/projects/411/merge_requests?state=merged&order_by=updated_at&target_branch=master&private_token=$UPDATE_CACHE_TOKEN" > temp_result.txt
+    - curl --verbose --location --request GET "https://gitlab.linphone.org/api/v4/projects/411/merge_requests?state=merged&order_by=updated_at&target_branch=$CI_COMMIT_BRANCH&private_token=$UPDATE_CACHE_TOKEN" > temp_result.txt
     - cat temp_result.txt | jq ".[0].source_branch" > source_branch.txt
     - cat temp_result.txt | jq ".[0].force_remove_source_branch" > force_remove_source_branch.txt
     - echo source_branch.txt
