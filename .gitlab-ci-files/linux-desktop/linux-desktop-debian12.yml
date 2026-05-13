@@ -4,10 +4,11 @@ wait-cache-synchro-debian12:
     BUILD_SUBTYPE: debian12
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $SKIP_LINUX == null
-    - !reference [.wait-cache-synchro, rules]
+    - !reference [.rules-merge-request-manual, rules]
 
 recache-debian12:
   extends: .recache-update-cache
+  allow_failure: true
   image: !reference [.debian12_image_version, image]
 
 wait-cache-synchro-debian12-java:
