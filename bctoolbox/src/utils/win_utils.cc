@@ -40,7 +40,7 @@ using namespace std;
 //-------------------------------------------------
 #ifdef BCTBX_WINDOWS_UWP
 
-std::string GetBackTrace(int SkipFrames) {
+std::string bctoolbox::Utils::getStackTraceAsString(int skipFrames) {
 	std::stringstream result;
 	constexpr unsigned int TRACE_MAX_STACK_FRAMES = 99;
 	void *stack[TRACE_MAX_STACK_FRAMES];
@@ -66,7 +66,7 @@ std::string GetBackTrace(int SkipFrames) {
 // Hooks
 void _signal_hook(int u) {
 	// Skip 8 useless stack frames
-	bctbx_error("UWP Stack trace %d :\n%s\n", u, GetBackTrace(8).c_str());
+	bctbx_error("UWP Stack trace %d :\n%s\n", u, bctoolbox::Utils::getStackTraceAsString(8).c_str());
 }
 
 //------------------------------------
@@ -175,9 +175,7 @@ std::vector<StackFrame> getStackTrace() {
 
 	return frames;
 }
-
-// Hooks
-void _signal_hook(int u) {
+std::string bctoolbox::Utils::getStackTraceAsString(int skipFrames) {
 	std::stringstream buff;
 	buff << __FUNCTION__ << ":  General Fault: '" << std::to_string(u) << "'! \n";
 	buff << "\n";
@@ -187,7 +185,11 @@ void _signal_hook(int u) {
 	for (unsigned int i = 0; i < stack.size(); i++)
 		buff << "0x" << std::hex << stack[i].address << ": " << stack[i].name << "(" << stack[i].line << ") in "
 		     << stack[i].module << "\n";
-	bctbx_error(buff.str().c_str());
+	return buff.str();
+}
+// Hooks
+void _signal_hook(int) {
+	bctbx_error(bctoolbox::Utils::getStackTraceAsString(0).c_str());
 }
 
 #endif

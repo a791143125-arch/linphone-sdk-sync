@@ -18,6 +18,9 @@
  */
 
 #include "bctoolbox/utils.hh"
+#include <cstdlib>
+#include <cxxabi.h>
+#include <execinfo.h>
 #include <sstream>
 
 using namespace std;
@@ -116,6 +119,51 @@ std::string bctoolbox::Utils::getMemoryReportAsString() {
 #endif
 	return ossReport.str();
 }
+
+#ifndef WIN32 // Defined in win_utils.cc
+std::string demangle(const char *symbol) {
+	std::string result(symbol);
+
+	size_t begin = result.find('(');
+	size_t end = result.find('+', begin);
+
+	if (begin != std::string::npos && end != std::string::npos) {
+		std::string mangled = result.substr(begin + 1, end - begin - 1);
+
+		int status = 0;
+		char *demangled = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+
+		if (status == 0 && demangled) {
+			result.replace(begin + 1, end - begin - 1, demangled);
+		}
+
+		free(demangled);
+	}
+
+	return result;
+}
+
+std::string bctoolbox::Utils::getStackTraceAsString(int skipFrames) {
+	std::ostringstream oss;
+#ifdef __linux__
+	constexpr int max_frames = 64;
+	void *buffer[max_frames];
+
+	int nptrs = backtrace(buffer, max_frames);
+	char **symbols = backtrace_symbols(buffer, nptrs);
+
+	if (!symbols) {
+		return "Failed to retrieve stacktrace\n";
+	}
+	for (int i = skipFrames; i < nptrs; ++i) {
+		oss << demangle(symbols[i]) << '\n';
+	}
+
+	free(symbols);
+#endif
+	return oss.str();
+}
+#endif
 
 bool bctoolbox::Utils::isExecutableInstalled(const std::string &executable, const std::string &resource) {
 	auto pos = executable.find_last_of('/');

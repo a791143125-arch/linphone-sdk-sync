@@ -61,4 +61,6 @@ struct _MSOglContextInfo {
 };
 typedef struct _MSOglContextInfo MSOglContextInfo;
 
+void setWindowTitle(void *window, const char *title);
+
 #endif

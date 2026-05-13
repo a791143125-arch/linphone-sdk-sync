@@ -18,6 +18,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bctoolbox/utils.hh"
+
+#include <stacktrace>
+
 #include "mediastreamer2/msasync.h"
 #include "mediastreamer2/mscommon.h"
 #include "mediastreamer2/msfilter.h"
@@ -72,7 +76,7 @@ typedef struct _FilterData {
 	bool_t show_video;
 	bool_t mirroring;
 	bool_t update_mirroring;
-	bool_t update_context;
+	int update_context;
 
 	mblk_t *prev_inm;
 	MSVideoDisplayMode mode;
@@ -91,9 +95,12 @@ When finishing rendering, call msogl_release_worker to release the current worke
 From the result, call ms_worker_thread_destroy if needed.
 
 \***********************************************************************************/
+#include <map>
 typedef struct _MSOGLSharedContext {
 	MSWorkerThread *process_thread;
 	int use_count;
+	std::map<uint64_t, uint64_t> windowId;
+
 } MSOGLSharedContext;
 static MSOGLSharedContext shared_context = {NULL, 0};
 static ms_mutex_t shared_context_lock;
@@ -141,6 +148,27 @@ static bool_t msogl_release_worker(MSWorkerThread *worker) {
 		ms_mutex_unlock(&shared_context_lock);
 		return FALSE;
 	}
+}
+
+static void msogl_add_window_id_for_debug(uint64_t filter, uint64_t id) {
+	ms_mutex_lock(&shared_context_lock);
+	if (id) {
+		shared_context.windowId[filter] = id;
+		ms_message("Add ID [0x%lx] for [0x%lx] %s", id, filter, bctoolbox::Utils::getStackTraceAsString(0).c_str());
+	} else shared_context.windowId.erase(filter);
+	ms_mutex_unlock(&shared_context_lock);
+}
+
+static bool msogl_duplicate_window_id_for_debug() {
+	bool haveDuplicate = false;
+	ms_mutex_lock(&shared_context_lock);
+	std::map<uint64_t, int> c;
+	for (auto a : shared_context.windowId) {
+		++c[a.second];
+		if (c[a.second] > 1) haveDuplicate = true;
+	}
+	ms_mutex_unlock(&shared_context_lock);
+	return haveDuplicate;
 }
 
 /***********************************************************************************/
@@ -232,6 +260,8 @@ static void ogl_uninit(MSFilter *f) {
 	ms_filter_lock(f);
 	FilterData *data = (FilterData *)f->data;
 	MSTask *task;
+
+	msogl_add_window_id_for_debug((uint64_t)f, 0);
 
 	bool_t toDestroy = msogl_release_worker(data->process_thread);
 	if (toDestroy) {
@@ -386,6 +416,12 @@ static bool_t msogl_set_native_window_id(MSFilter *f) {
 static int ogl_set_native_window_id(MSFilter *f, void *arg) {
 	FilterData *data = (FilterData *)f->data;
 	data->requested_window_id = arg;
+
+	auto context_info = arg ? *((MSOglContextInfo **)data->requested_window_id) : NULL;
+	msogl_add_window_id_for_debug((uint64_t)f, (uint64_t)(context_info ? context_info->window : 0));
+	if (msogl_duplicate_window_id_for_debug()) {
+		ms_message("Achtung! Duplicated Window ID");
+	}
 #ifdef MS2_WINDOWS_UWP
 	return msogl_set_native_window_id(f);
 #else
@@ -407,7 +443,8 @@ static int ogl_get_native_window_id(MSFilter *f, void *arg) {
 }
 
 static int ogl_create_native_window_id(BCTBX_UNUSED(MSFilter *f), void *arg) {
-	MSOglContextInfo *id = (MSOglContextInfo **)arg ? *(MSOglContextInfo **)arg : ms_new0(MSOglContextInfo, 1);
+	MSOglContextInfo *id = (MSOglContextInfo **)arg && *(MSOglContextInfo **)arg ? *(MSOglContextInfo **)arg
+	                                                                             : ms_new0(MSOglContextInfo, 1);
 #ifdef MS2_WINDOWS_UWP
 	Platform::Agile<CoreApplicationView> window_id;
 #else
@@ -474,19 +511,27 @@ static int ogl_call_render(MSFilter *f, void *arg) {
 		    (context_info && context_info->window)) {
 			ogl_display_uninit(data->display, TRUE);
 		}
+		bool isInitialized = true;
 		if (context_info) {
 			if (context_info->window) {
 				// Window is set : do EGL initialization from it
 				ms_message("[MSOGL]:%p Auto init on %p", f, data->display);
-				ogl_display_auto_init(data->display, &data->functions, (EGLNativeWindowType)context_info->window,
-				                      context_info->width, context_info->height);
+				isInitialized =
+				    ogl_display_auto_init(data->display, &data->functions, (EGLNativeWindowType)context_info->window,
+				                          context_info->width, context_info->height) == 0;
 			} else {
 				// Just use input size as it is needed for viewport
 				ms_message("[MSOGL]:%p Init on %p", f, data->display);
-				ogl_display_init(data->display, &data->functions, context_info->width, context_info->height);
+				isInitialized =
+				    ogl_display_init(data->display, &data->functions, context_info->width, context_info->height) == 0;
 			}
 		}
-		data->update_context = UPDATE_CONTEXT_NOTHING;
+		if (isInitialized) data->update_context = UPDATE_CONTEXT_NOTHING;
+		else {
+			ms_mutex_unlock(&gLock);
+			if (f != NULL) ms_filter_unlock(f);
+			return 0;
+		}
 	}
 	if (data->show_video && context_info && data->display &&
 	    (context_info->window || (!context_info->window && context_info->width && context_info->height))) {
@@ -494,7 +539,8 @@ static int ogl_call_render(MSFilter *f, void *arg) {
 		if (status == -1) {
 			ms_warning("[MSOGL] Failed to make EGLSurface current");
 		} else if (status >= 0) {
-			ogl_display_render(data->display, 0, data->mode);
+			if (ogl_display_render(data->display, 0, data->mode) != 0)
+				data->update_context = UPDATE_CONTEXT_DISPLAY_UNINIT;
 		}
 	}
 	if (data->display) ogl_display_notify_errors(data->display, f);

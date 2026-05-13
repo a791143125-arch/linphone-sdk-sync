@@ -437,7 +437,7 @@ bool does_all_participants_have_matching_ekt(std::list<LinphoneCoreManager *> me
                                              const LinphoneAddress *confAddr,
                                              LinphoneConferenceSecurityLevel security_level);
 
-void check_call_establishment(std::initializer_list<std::reference_wrapper<CoreManager>> coreMgrs,
+void check_call_establishment(std::list<std::reference_wrapper<CoreManager>> coreMgrs,
                               std::list<LinphoneCoreManager *> membersMgr,
                               std::pair<LinphoneCoreManager *, stats> focus,
                               const std::list<std::pair<LinphoneCoreManager *, stats>> &members,
@@ -450,7 +450,7 @@ void check_call_establishment(std::initializer_list<std::reference_wrapper<CoreM
                               bool_t ics_sent);
 
 bool_t check_thumbnail_availability(const LinphoneCoreManager *mgr, const LinphoneAddress *confAddr);
-void toggle_screen_sharing(std::initializer_list<std::reference_wrapper<CoreManager>> coreMgrs,
+void toggle_screen_sharing(std::list<std::reference_wrapper<CoreManager>> coreMgrs,
                            LinphoneCoreManager *focus,
                            const std::list<LinphoneCoreManager *> &members,
                            LinphoneCoreManager *screen_sharing_mgr,
@@ -460,7 +460,7 @@ void toggle_screen_sharing(std::initializer_list<std::reference_wrapper<CoreMana
 bool_t check_screen_sharing(const LinphoneCoreManager *mgr,
                             const LinphoneAddress *confAddr,
                             const LinphoneCoreManager *screen_sharing_mgr);
-void wait_for_conference_streams(std::initializer_list<std::reference_wrapper<CoreManager>> coreMgrs,
+void wait_for_conference_streams(std::list<std::reference_wrapper<CoreManager>> coreMgrs,
                                  std::list<LinphoneCoreManager *> conferenceMgrs,
                                  LinphoneCoreManager *focus,
                                  std::map<LinphoneCoreManager *, LinphoneParticipantInfo *> members,

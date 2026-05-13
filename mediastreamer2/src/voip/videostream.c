@@ -2300,10 +2300,13 @@ void video_stream_set_native_preview_window_id(VideoStream *stream, void *id) {
 		stream->preview_window_id = id;
 #if !TARGET_OS_IPHONE
 		if (stream->output2) {
+			if (stream->source) { // Do it first to free memory before reinitialization
+				ms_filter_call_method(stream->source, MS_VIDEO_DISPLAY_SET_NATIVE_WINDOW_ID, MS_FILTER_VIDEO_NONE);
+			}
 			ms_filter_call_method(stream->output2, MS_VIDEO_DISPLAY_SET_NATIVE_WINDOW_ID, &id);
-		}
+		} else
 #endif
-		if (stream->source) {
+		    if (stream->source) {
 			ms_filter_call_method(stream->source, MS_VIDEO_DISPLAY_SET_NATIVE_WINDOW_ID, &id);
 		}
 	}

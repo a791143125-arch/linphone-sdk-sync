@@ -756,7 +756,7 @@ end:
 	return conference_address;
 }
 
-void check_call_establishment(std::initializer_list<std::reference_wrapper<CoreManager>> coreMgrs,
+void check_call_establishment(std::list<std::reference_wrapper<CoreManager>> coreMgrs,
                               std::list<LinphoneCoreManager *> membersMgr,
                               std::pair<LinphoneCoreManager *, stats> focus,
                               const std::list<std::pair<LinphoneCoreManager *, stats>> &members,
@@ -1231,7 +1231,7 @@ void check_muted(std::initializer_list<std::reference_wrapper<CoreManager>> core
 	}));
 }
 
-void wait_for_conference_streams(std::initializer_list<std::reference_wrapper<CoreManager>> coreMgrs,
+void wait_for_conference_streams(std::list<std::reference_wrapper<CoreManager>> coreMgrs,
                                  std::list<LinphoneCoreManager *> conferenceMgrs,
                                  LinphoneCoreManager *focus,
                                  std::map<LinphoneCoreManager *, LinphoneParticipantInfo *> members,
@@ -1601,7 +1601,7 @@ bool_t check_thumbnail_availability(const LinphoneCoreManager *mgr, const Linpho
 	return thumbnail_availability_ok;
 }
 
-void toggle_screen_sharing(std::initializer_list<std::reference_wrapper<CoreManager>> coreMgrs,
+void toggle_screen_sharing(std::list<std::reference_wrapper<CoreManager>> coreMgrs,
                            LinphoneCoreManager *focus,
                            const std::list<LinphoneCoreManager *> &members,
                            LinphoneCoreManager *screen_sharing_mgr,
@@ -5004,13 +5004,13 @@ void create_conference_with_screen_sharing_base(time_t start_time,
 		bctbx_list_t *participants_info = NULL;
 		std::map<LinphoneCoreManager *, LinphoneParticipantInfo *> participantList;
 		participantList.insert(std::make_pair(
+		    pauline.getCMgr(), add_participant_info_to_list(&participants_info, pauline.getCMgr()->identity,
+		                                                    LinphoneParticipantRoleSpeaker, -1)));
+		participantList.insert(std::make_pair(
 		    laure.getCMgr(), add_participant_info_to_list(&participants_info, laure.getCMgr()->identity,
 		                                                  (listenerAllowed) ? LinphoneParticipantRoleListener
 		                                                                    : LinphoneParticipantRoleSpeaker,
 		                                                  -1)));
-		participantList.insert(std::make_pair(
-		    pauline.getCMgr(), add_participant_info_to_list(&participants_info, pauline.getCMgr()->identity,
-		                                                    LinphoneParticipantRoleSpeaker, -1)));
 		participantList.insert(std::make_pair(
 		    michelle.getCMgr(), add_participant_info_to_list(&participants_info, michelle.getCMgr()->identity,
 		                                                     (listenerAllowed) ? LinphoneParticipantRoleListener
