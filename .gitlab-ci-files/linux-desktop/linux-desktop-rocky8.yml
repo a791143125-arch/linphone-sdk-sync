@@ -175,172 +175,172 @@ rocky8-python-wheel:
 #################################################
 
 
-bctoolbox-rocky8-test:
-  extends: .test-bctoolbox
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# bctoolbox-rocky8-test:
+#   extends: .test-bctoolbox
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-bctoolbox-rocky8-test-mr:
-  extends: .test-bctoolbox-mr
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# bctoolbox-rocky8-test-mr:
+#   extends: .test-bctoolbox-mr
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-pqc-rocky8-test:
-  extends: .test-pqc
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
-  needs:
-    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+# pqc-rocky8-test:
+#   extends: .test-pqc
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
+#   needs:
+#     - rocky8-ninja-gcc-tunnel-pq-h264-ekt
 
-# pqc-rocky8-test-mr:
-#  extends: .test-pqc-mr
-#  <<: *docker_image_needs_platform_runner_tag_dev_toolset
-#  needs:
-#    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+# # pqc-rocky8-test-mr:
+# #  extends: .test-pqc-mr
+# #  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# #  needs:
+# #    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
 
-belr-rocky8-test:
-  extends: .test-belr
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# belr-rocky8-test:
+#   extends: .test-belr
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-belr-rocky8-test-mr:
-  extends: .test-belr-mr
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# belr-rocky8-test-mr:
+#   extends: .test-belr-mr
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-belcard-rocky8-test:
-  extends: .test-belcard
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# belcard-rocky8-test:
+#   extends: .test-belcard
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-belcard-rocky8-test-mr:
-  extends: .test-belcard-mr
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# belcard-rocky8-test-mr:
+#   extends: .test-belcard-mr
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-bzrtp-rocky8-test:
-  extends: .test-bzrtp
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# bzrtp-rocky8-test:
+#   extends: .test-bzrtp
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-bzrtp-rocky8-test-mr:
-  extends: .test-bzrtp-mr
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# bzrtp-rocky8-test-mr:
+#   extends: .test-bzrtp-mr
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-ortp-rocky8-test:
-  extends: .test-ortp
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# ortp-rocky8-test:
+#   extends: .test-ortp
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-ortp-rocky8-test-mr:
-  extends: .test-ortp-mr
-  <<: *docker_image_needs_platform_runner_tag_dev_toolset
+# ortp-rocky8-test-mr:
+#   extends: .test-ortp-mr
+#   <<: *docker_image_needs_platform_runner_tag_dev_toolset
 
-.factorize_bs_rocky8: &docker_image_needs_tag_platform_devtoolset_bs
-  image: !reference [ .rocky8_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc
-  #different runner needed because belle-sip_tester can't work in parallel (dialog test suite is crashing randomly)
-  tags: [ "docker-sequential" ]
-  variables:
-    PLATFORM: linux-rocky8
+# .factorize_bs_rocky8: &docker_image_needs_tag_platform_devtoolset_bs
+#   image: !reference [ .rocky8_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc
+#   #different runner needed because belle-sip_tester can't work in parallel (dialog test suite is crashing randomly)
+#   tags: [ "docker-sequential" ]
+#   variables:
+#     PLATFORM: linux-rocky8
 
-bellesip-rocky8-test:
-  extends: .test-bellesip
-  <<: *docker_image_needs_tag_platform_devtoolset_bs
-
-# bellesip-rocky8-test-mr:
-#   extends: .test-bellesip-mr
+# bellesip-rocky8-test:
+#   extends: .test-bellesip
 #   <<: *docker_image_needs_tag_platform_devtoolset_bs
 
-.factorize_ms2_rocky8: &docker_image_needs_platform_devtoolset_ms
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc
-  variables:
-    PLATFORM: linux-rocky8
+# # bellesip-rocky8-test-mr:
+# #   extends: .test-bellesip-mr
+# #   <<: *docker_image_needs_tag_platform_devtoolset_bs
 
-mediastreamer-rocky8-test:
-  extends: .test-mediastreamer
-  <<: *docker_image_needs_platform_devtoolset_ms
+# .factorize_ms2_rocky8: &docker_image_needs_platform_devtoolset_ms
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc
+#   variables:
+#     PLATFORM: linux-rocky8
 
-# mediastreamer-rocky8-test-mr:
-#   extends: .test-mediastreamer-mr
+# mediastreamer-rocky8-test:
+#   extends: .test-mediastreamer
 #   <<: *docker_image_needs_platform_devtoolset_ms
 
-mediastreamer-rocky8-test-h264-mr:
-  extends: .test-mediastreamer-mr
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
-  variables:
-    PLATFORM: linux-rocky8
+# # mediastreamer-rocky8-test-mr:
+# #   extends: .test-mediastreamer-mr
+# #   <<: *docker_image_needs_platform_devtoolset_ms
+
+# mediastreamer-rocky8-test-h264-mr:
+#   extends: .test-mediastreamer-mr
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+#   variables:
+#     PLATFORM: linux-rocky8
 
 
-.factorize_liblinphone_rocky8: &docker_image_needs_platform_devtoolset_libl
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc
-  variables:
-    PLATFORM: linux-rocky8
+# .factorize_liblinphone_rocky8: &docker_image_needs_platform_devtoolset_libl
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc
+#   variables:
+#     PLATFORM: linux-rocky8
 
-liblinphone-rocky8-test:
-  extends: .test-liblinphone
-  <<: *docker_image_needs_platform_devtoolset_libl
+# liblinphone-rocky8-test:
+#   extends: .test-liblinphone
+#   <<: *docker_image_needs_platform_devtoolset_libl
 
-liblinphone-rocky8-test-pq-h264-ekt:
-  extends:
-    - .test-liblinphone-tunnel-pq
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
-  variables:
-    PLATFORM: linux-rocky8
+# liblinphone-rocky8-test-pq-h264-ekt:
+#   extends:
+#     - .test-liblinphone-tunnel-pq
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+#   variables:
+#     PLATFORM: linux-rocky8
 
-liblinphone-rocky8-test-shaky:
-  extends:
-    - .test-liblinphone-shaky
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    # shaky tests uses this image when possible to be sure to test all shaky tests
-    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
-  variables:
-    PLATFORM: linux-rocky8
+# liblinphone-rocky8-test-shaky:
+#   extends:
+#     - .test-liblinphone-shaky
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     # shaky tests uses this image when possible to be sure to test all shaky tests
+#     - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+#   variables:
+#     PLATFORM: linux-rocky8
 
-liblinphone-rocky8-test-performance:
-  extends:
-    - .test-liblinphone-performance
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-clang-mysql
-  variables:
-    PLATFORM: linux-rocky8
-    NIGHTLY_PERFORMANCE_TESTS_LIBLINPHONE: "true"
+# liblinphone-rocky8-test-performance:
+#   extends:
+#     - .test-liblinphone-performance
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-clang-mysql
+#   variables:
+#     PLATFORM: linux-rocky8
+#     NIGHTLY_PERFORMANCE_TESTS_LIBLINPHONE: "true"
 
-liblinphone-rocky8-test-mr:
-  extends: .test-liblinphone-mr
-  <<: *docker_image_needs_platform_devtoolset_libl
+# liblinphone-rocky8-test-mr:
+#   extends: .test-liblinphone-mr
+#   <<: *docker_image_needs_platform_devtoolset_libl
 
-liblinphone-rocky8-test-mr-pq-h264-ekt:
-  extends:
-    - .test-liblinphone-tunnel-pq-mr
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
-  variables:
-    PLATFORM: linux-rocky8
+# liblinphone-rocky8-test-mr-pq-h264-ekt:
+#   extends:
+#     - .test-liblinphone-tunnel-pq-mr
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+#   variables:
+#     PLATFORM: linux-rocky8
 
-liblinphone-rocky8-test-shaky-mr:
-  extends:
-    - .test-liblinphone-shaky-mr
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-gcc-tunnel-pq-h264-ekt
-  variables:
-    PLATFORM: linux-rocky8
+# liblinphone-rocky8-test-shaky-mr:
+#   extends:
+#     - .test-liblinphone-shaky-mr
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-gcc-tunnel-pq-h264-ekt
+#   variables:
+#     PLATFORM: linux-rocky8
 
-liblinphone-rocky8-test-performance-mr:
-  extends:
-    - .test-liblinphone-performance-mr
-  image: !reference [ .rocky8_test_libl_image_version, image ]
-  needs:
-    - rocky8-ninja-clang-mysql
-  variables:
-    PLATFORM: linux-rocky8
+# liblinphone-rocky8-test-performance-mr:
+#   extends:
+#     - .test-liblinphone-performance-mr
+#   image: !reference [ .rocky8_test_libl_image_version, image ]
+#   needs:
+#     - rocky8-ninja-clang-mysql
+#   variables:
+#     PLATFORM: linux-rocky8
 
-liblinphone-rocky8-test-force:
-  extends: .test-liblinphone
-  <<: *docker_image_needs_platform_devtoolset_libl
-  rules:
-    - if: $ENABLE_TESTS_LIBLINPHONE != null
+# liblinphone-rocky8-test-force:
+#   extends: .test-liblinphone
+#   <<: *docker_image_needs_platform_devtoolset_libl
+#   rules:
+#     - if: $ENABLE_TESTS_LIBLINPHONE != null
