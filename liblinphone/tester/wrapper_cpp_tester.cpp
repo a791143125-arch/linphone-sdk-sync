@@ -686,6 +686,7 @@ LinphoneParticipantRoleListener) != allowedRoles.cend();
 		LinphoneCall *call = linphone_core_get_call_by_remote_address2(coreActivation, confAddr);
 		BC_ASSERT_PTR_NOT_NULL(call);
 		if (call) {
+			toActivate->getCore().toggleVideoPreview(enable_camera);
 			LinphoneCallParams *new_params = linphone_core_create_call_params(coreActivation, call);
 			linphone_call_params_enable_video(new_params, TRUE);
 			linphone_call_params_enable_camera(new_params, enable_camera);
@@ -838,7 +839,7 @@ static void screen_sharing(void) {
 	    focus, clientConferences, ms_time(NULL), -1, LinphoneMediaEncryptionNone, LinphoneConferenceLayoutActiveSpeaker,
 	    TRUE, LinphoneMediaDirectionSendRecv, LinphoneConferenceSecurityLevelNone,
 	    {LinphoneParticipantRoleSpeaker, LinphoneParticipantRoleListener});
-	// Create persistant windows
+	// Create persistent windows
 	MSOglContextInfo screenSharerContext, screenSharerPreviewContext;
 	void *sharerWindowId = NULL, *sharerPreviewWindowId = NULL;
 	WrapperTools::setWindowId(screenSharer, screenSharerContext, &sharerWindowId, "Berthe", false);
@@ -868,11 +869,13 @@ static void screen_sharing(void) {
 
 	// nativeId = marie->getCurrentCall()->getNativeVideoWindowId();
 	// setWindowTitle(nativeId, "Marie");
-	wait_for_list(coresList, NULL, 1, 100);
+	wait_for_list(coresList, NULL, 1, 1000);
 	// Activate ScreenSharing
+	lInfo() << "Test: Activating Screen sharing";
 	WrapperTools::activateScreenSharing(focus, clientConferences, screenSharerCore, confAddr, TRUE, TRUE,
 	                                    LinphoneMediaDirectionSendRecv,
 	                                    {LinphoneParticipantRoleSpeaker, LinphoneParticipantRoleListener});
+	// screenSharer->reloadVideoDevices();
 	/*
 	    auto params = marie->createCallParams(marie->getCurrentCall());
 	    params->setRecordFile("/home/julienw/projects/sdk-55/build/debug/linphone-sdk/record-marie.mkv");
@@ -891,21 +894,29 @@ static void screen_sharing(void) {
 
 	// screenSharer->setNativeVideoWindowId(sharerWindowId);
 	// screenSharer->setNativePreviewWindowId(sharerPreviewWindowId);
-	wait_for_list(coresList, NULL, 1, 100);
-
-	lInfo() << "Test: Reloading Devices";
-	lInfo() << "CameraEnabled: " << screenSharer->getCurrentCall()->cameraEnabled() << " / "
-	        << screenSharer->getCurrentCall()->getRemoteParams()->cameraEnabled() << " / "
-	        << screenSharer->getCurrentCall()->getCurrentParams()->cameraEnabled() << " / "
-	        << screenSharer->getCurrentCall()->getParams()->cameraEnabled();
-	wait_for_list(coresList, NULL, 1, 5000);
-	screenSharer->reloadVideoDevices();
-	wait_for_list(coresList, NULL, 1, 5000);
-	lInfo() << "CameraEnabled: " << screenSharer->getCurrentCall()->cameraEnabled() << " / "
-	        << screenSharer->getCurrentCall()->getRemoteParams()->cameraEnabled() << " / "
-	        << screenSharer->getCurrentCall()->getCurrentParams()->cameraEnabled() << " / "
-	        << screenSharer->getCurrentCall()->getParams()->cameraEnabled();
-
+	wait_for_list(coresList, NULL, 1, 10000);
+	/*
+	    lInfo() << "Test: Reloading Devices";
+	    lInfo() << "CameraEnabled: " << screenSharer->getCurrentCall()->cameraEnabled() << " / "
+	            << screenSharer->getCurrentCall()->getRemoteParams()->cameraEnabled() << " / "
+	            << screenSharer->getCurrentCall()->getCurrentParams()->cameraEnabled() << " / "
+	            << screenSharer->getCurrentCall()->getParams()->cameraEnabled();
+	    screenSharer->reloadVideoDevices();
+	    wait_for_list(coresList, NULL, 1, 5000);
+	    screenSharer->reloadVideoDevices();
+	    wait_for_list(coresList, NULL, 1, 5000);
+	    lInfo() << "CameraEnabled: " << screenSharer->getCurrentCall()->cameraEnabled() << " / "
+	            << screenSharer->getCurrentCall()->getRemoteParams()->cameraEnabled() << " / "
+	            << screenSharer->getCurrentCall()->getCurrentParams()->cameraEnabled() << " / "
+	            << screenSharer->getCurrentCall()->getParams()->cameraEnabled();
+	    MSWebCamDesc *desc = ms_mire_webcam_desc_get();
+	    if (desc) {
+	        auto cam = ms_web_cam_new(desc);
+	        ms_web_cam_manager_add_cam(ms_factory_get_web_cam_manager(linphone_core_get_ms_factory(&screenSharerCore->getCCore())),
+	   cam); screenSharer->setVideoDevice(liblinphone_tester_mire_id);
+	    }
+	    wait_for_list(coresList, NULL, 1, 5000);
+	    */
 	WrapperTools::deleteClients(clientConferences);
 	linphone_address_unref(confAddr);
 

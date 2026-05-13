@@ -50,6 +50,8 @@ replace(std::string &source, const std::string &from, const std::string &to, con
 
 // Return the current state of memory as a string. This is currently implemented only for Windows.
 BCTBX_PUBLIC std::string getMemoryReportAsString();
+// Return the backtrace with skipping 'skipFrames' frames from the start of the back trace.
+BCTBX_PUBLIC std::string getStackTraceAsString(int skipFrames = 0);
 
 // Replace const_cast in order to be adapted from types. Be carefull when using it.
 template <typename From>

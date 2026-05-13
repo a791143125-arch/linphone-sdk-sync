@@ -18,6 +18,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bctoolbox/utils.hh"
+
+#include <stacktrace>
+
 #include "mediastreamer2/msasync.h"
 #include "mediastreamer2/mscommon.h"
 #include "mediastreamer2/msfilter.h"
@@ -72,7 +76,7 @@ typedef struct _FilterData {
 	bool_t show_video;
 	bool_t mirroring;
 	bool_t update_mirroring;
-	bool_t update_context;
+	int update_context;
 
 	mblk_t *prev_inm;
 	MSVideoDisplayMode mode;
@@ -148,8 +152,10 @@ static bool_t msogl_release_worker(MSWorkerThread *worker) {
 
 static void msogl_add_window_id_for_debug(uint64_t filter, uint64_t id) {
 	ms_mutex_lock(&shared_context_lock);
-	if (id) shared_context.windowId[filter] = id;
-	else shared_context.windowId.erase(filter);
+	if (id) {
+		shared_context.windowId[filter] = id;
+		ms_message("Add ID [0x%lx] for [0x%lx] %s", id, filter, bctoolbox::Utils::getStackTraceAsString(0).c_str());
+	} else shared_context.windowId.erase(filter);
 	ms_mutex_unlock(&shared_context_lock);
 }
 
@@ -505,19 +511,27 @@ static int ogl_call_render(MSFilter *f, void *arg) {
 		    (context_info && context_info->window)) {
 			ogl_display_uninit(data->display, TRUE);
 		}
+		bool isInitialized = true;
 		if (context_info) {
 			if (context_info->window) {
 				// Window is set : do EGL initialization from it
 				ms_message("[MSOGL]:%p Auto init on %p", f, data->display);
-				ogl_display_auto_init(data->display, &data->functions, (EGLNativeWindowType)context_info->window,
-				                      context_info->width, context_info->height);
+				isInitialized =
+				    ogl_display_auto_init(data->display, &data->functions, (EGLNativeWindowType)context_info->window,
+				                          context_info->width, context_info->height) == 0;
 			} else {
 				// Just use input size as it is needed for viewport
 				ms_message("[MSOGL]:%p Init on %p", f, data->display);
-				ogl_display_init(data->display, &data->functions, context_info->width, context_info->height);
+				isInitialized =
+				    ogl_display_init(data->display, &data->functions, context_info->width, context_info->height) == 0;
 			}
 		}
-		data->update_context = UPDATE_CONTEXT_NOTHING;
+		if (isInitialized) data->update_context = UPDATE_CONTEXT_NOTHING;
+		else {
+			ms_mutex_unlock(&gLock);
+			if (f != NULL) ms_filter_unlock(f);
+			return 0;
+		}
 	}
 	if (data->show_video && context_info && data->display &&
 	    (context_info->window || (!context_info->window && context_info->width && context_info->height))) {
@@ -525,7 +539,8 @@ static int ogl_call_render(MSFilter *f, void *arg) {
 		if (status == -1) {
 			ms_warning("[MSOGL] Failed to make EGLSurface current");
 		} else if (status >= 0) {
-			ogl_display_render(data->display, 0, data->mode);
+			if (ogl_display_render(data->display, 0, data->mode) != 0)
+				data->update_context = UPDATE_CONTEXT_DISPLAY_UNINIT;
 		}
 	}
 	if (data->display) ogl_display_notify_errors(data->display, f);

@@ -1135,11 +1135,11 @@ void MS2VideoControl::parametersChanged() {
 	vsize.height = static_cast<int>(linphone_video_definition_get_height(vdef));
 	video_stream_set_sent_video_size(vs, vsize);
 	video_stream_set_fps(vs, linphone_core_get_preferred_framerate(mCore.getCCore()));
-	if (cameraEnabled() && vs->cam && vs->cam != mCore.getCCore()->video_conf.device
-	//If we are sharing screen, the camera change is only for thumbnail.
-		&& (!video_stream_local_screen_sharing_enabled(vs) || vs->is_thumbnail)) {
-			video_stream_change_camera(vs, mCore.getCCore()->video_conf.device);
-	}else video_stream_update_video_params(vs);
+	// ScreenSharing is not about sharing camera.
+	if (cameraEnabled() && !video_stream_local_screen_sharing_enabled(vs) &&
+	    vs->cam != mCore.getCCore()->video_conf.device) {
+		video_stream_change_camera(vs, mCore.getCCore()->video_conf.device);
+	} else video_stream_update_video_params(vs);
 }
 
 void MS2VideoControl::enableCamera(bool value) {
