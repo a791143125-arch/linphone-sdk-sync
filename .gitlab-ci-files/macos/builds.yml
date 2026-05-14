@@ -1,7 +1,7 @@
 .macos-desktop:
   extends: .job-prepare
   stage: build
-  tags: [ "macos-xcode13" ]
+  tags: [ "macmini-m1-3-xcode16" ]
 
   rules:
     - !reference [.rules-merge-request-manual, rules]
@@ -59,7 +59,7 @@
 
 # Screen sharing not available on Xcode 12
 .macos-m1-multiarch-desktop:
-  tags: [ "macos-min-xcode12.2" ]
+  tags: [ "macmini-m1-3-xcode16" ]
   variables:
     LINPHONESDK_MACOS_ARCHS: "arm64, x86_64"
     CMAKE_OPTIONS: -DENABLE_SCREENSHARING=OFF
@@ -161,6 +161,7 @@ macos-xcode:
 
   before_script:
     - CCACHE_CONFIGPATH=~/Library/Preferences/ccache/ccache-xcode.conf
+    - export CCACHE_CONFIGPATH=~/Library/Preferences/ccache/ccache-xcode.conf
 
     - !reference [.macos-desktop, before_script]
 
@@ -168,6 +169,12 @@ macos-xcode:
     - DESCRIBE=$(git -C liblinphone describe)
     - echo $DESCRIBE
     - !reference [macos-m1-multiarch-makefile, script]
+
+  after_script:
+    - CCACHE_CONFIGPATH=~/Library/Preferences/ccache/ccache-xcode.conf
+    - export CCACHE_CONFIGPATH=~/Library/Preferences/ccache/ccache-xcode.conf
+
+    - !reference [.macos-desktop, after_script]
 
 macos-xcode-pqc:
   extends: macos-xcode
@@ -179,7 +186,7 @@ macos-xcode-pqc:
 
 macos-ninja-spm:
   extends: macos-ninja
-  tags: [ "macos-xcode15" ]
+  tags: [ "macmini-m1-3-xcode16" ]
   variables:
     CMAKE_OPTIONS: -DENABLE_FAT_BINARY=NO
     GIT_FETCH_EXTRA_FLAGS: --tags --force --recurse-submodules=yes
