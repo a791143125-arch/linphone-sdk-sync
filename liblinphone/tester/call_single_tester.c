@@ -6252,7 +6252,7 @@ static void call_with_transport_change_base(bool_t successfull_call) {
 	int bind_attempts;
 
 	linphone_core_cbs_set_call_state_changed(cbs, call_state_changed_2);
-	marie = linphone_core_manager_new("marie_rc");
+	marie = linphone_core_manager_new("marie_tcp_rc");
 	pauline = linphone_core_manager_new(transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc");
 	linphone_core_add_callbacks(marie->lc, cbs);
 	linphone_core_cbs_unref(cbs);

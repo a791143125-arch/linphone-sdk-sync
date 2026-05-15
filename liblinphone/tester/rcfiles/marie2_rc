@@ -20,8 +20,8 @@ realm=sip.example.org
 
 
 [proxy_0]
-reg_proxy=sip.example.org:5070;transport=tcp
-reg_route=sip.example.org:5070;transport=tcp;lr
+reg_proxy=<sip:sip.example.org:5070;transport=tls>
+reg_route=<sip:sip.example.org:5070;transport=tls>
 reg_identity="Super Marie" <sip:marie@sip.example.org>
 reg_expires=3600
 reg_sendregister=1

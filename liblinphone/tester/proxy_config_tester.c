@@ -344,7 +344,7 @@ static void load_dynamic_proxy_config(void) {
 }
 
 static void single_route(void) {
-	LinphoneCoreManager *marie = linphone_core_manager_new("marie_rc");
+	LinphoneCoreManager *marie = linphone_core_manager_new("marie_tcp_rc");
 	LinphoneProxyConfig *marie_cfg = linphone_core_get_default_proxy_config(marie->lc);
 	BC_ASSERT_PTR_NOT_NULL(marie_cfg);
 
