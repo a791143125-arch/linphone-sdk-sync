@@ -1341,23 +1341,16 @@ static void dtls_srtp_call_with_clients_certificates(void) {
 	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(pauline_call)) ==
 	               LinphoneMediaEncryptionStatusInactive);
 	linphone_call_accept(linphone_core_get_current_call(pauline->lc));
-	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallStreamsRunning, 1));
-	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallStreamsRunning, 1));
-	// we just accepted the call and the streams are running: the encryption is now in progress(DTLS handshake ongoing)
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(marie_call)) ==
-	               LinphoneMediaEncryptionStatusInProgress);
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(pauline_call)) ==
-	               LinphoneMediaEncryptionStatusInProgress);
+	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallMediaEncryptionInProgress,
+	                        initial_marie_stats.number_of_LinphoneCallMediaEncryptionInProgress + 1));
+	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallMediaEncryptionInProgress,
+	                        initial_pauline_stats.number_of_LinphoneCallMediaEncryptionInProgress + 1));
 
 	// Wait for DTLS handshake to complete
-	BC_ASSERT_TRUE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallEncryptedOn,
-	                              initial_marie_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
-	BC_ASSERT_TRUE(wait_for_until(pauline->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallEncryptedOn,
-	                              initial_pauline_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(marie_call)) ==
-	               LinphoneMediaEncryptionStatusActive);
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(pauline_call)) ==
-	               LinphoneMediaEncryptionStatusActive);
+	BC_ASSERT_TRUE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallMediaEncryptionActive,
+	                              initial_marie_stats.number_of_LinphoneCallMediaEncryptionActive + 1, 4000));
+	BC_ASSERT_TRUE(wait_for_until(pauline->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallMediaEncryptionActive,
+	                              initial_pauline_stats.number_of_LinphoneCallMediaEncryptionActive + 1, 4000));
 	BC_ASSERT_TRUE(isCurrentCallUsingDtls(marie));
 	BC_ASSERT_TRUE(isCurrentCallUsingDtls(pauline));
 	end_call(marie, pauline);
@@ -1421,21 +1414,15 @@ static void dtls_srtp_call_with_missing_client_certificate(void) {
 	               LinphoneMediaEncryptionStatusInactive);
 
 	linphone_call_accept(linphone_core_get_current_call(pauline->lc));
-	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallStreamsRunning, 1));
-	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallStreamsRunning, 1));
-	// DTLS handshake is in progress
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(marie_call)) ==
-	               LinphoneMediaEncryptionStatusInProgress);
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(pauline_call)) ==
-	               LinphoneMediaEncryptionStatusInProgress);
+	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallMediaEncryptionInProgress,
+	                        initial_marie_stats.number_of_LinphoneCallMediaEncryptionInProgress + 1));
+	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallMediaEncryptionInProgress,
+	                        initial_pauline_stats.number_of_LinphoneCallMediaEncryptionInProgress + 1));
 
 	// Marie fails to be encrypted as Pauline didn't provide a valid certificate
-	// wait 4 seconds so if it worked it would have enough time
-	BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallEncryptedOn,
-	                               initial_marie_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
+	BC_ASSERT_TRUE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallMediaEncryptionFailed,
+	                              initial_marie_stats.number_of_LinphoneCallMediaEncryptionFailed + 1, 4000));
 	BC_ASSERT_FALSE(isCurrentCallUsingDtls(marie));
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(marie_call)) ==
-	               LinphoneMediaEncryptionStatusFailed);
 	LinphoneCallStats *marie_stats = linphone_call_get_audio_stats(marie_call);
 	BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(marie_stats) ==
 	               LinphoneMediaEncryptionErrorDtlsCertificateVerificationFail);
@@ -1443,13 +1430,11 @@ static void dtls_srtp_call_with_missing_client_certificate(void) {
 
 	// For Pauline this test may fail as Marie will send an DTLS fatal alert to Pauline but it is not repeated, so
 	// Pauline may never receive it if this test fails too much, comment the following code
-	BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallEncryptedOn,
-	                               initial_pauline_stats.number_of_LinphoneCallEncryptedOn + 1, 1000));
+	BC_ASSERT_TRUE(wait_for_until(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallMediaEncryptionFailed,
+	                              initial_pauline_stats.number_of_LinphoneCallMediaEncryptionFailed + 1, 1000));
 	BC_ASSERT_FALSE(isCurrentCallUsingDtls(pauline));
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(pauline_call)) ==
-	               LinphoneMediaEncryptionStatusFailed);
-	LinphoneCallStats *pauline_stats = linphone_call_get_audio_stats(pauline_call);
 	// Pauline has no details on why the handshake failed
+	LinphoneCallStats *pauline_stats = linphone_call_get_audio_stats(pauline_call);
 	BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(pauline_stats) ==
 	               LinphoneMediaEncryptionErrorDtlsHandshakeFail);
 	linphone_call_stats_unref(pauline_stats);
@@ -1503,6 +1488,7 @@ static void dtls_srtp_call_with_unmatching_client_certificates(void) {
 	bc_free(path);
 
 	auto initial_marie_stats = marie->stat;
+	auto initial_pauline_stats = pauline->stat;
 
 	auto valid_cert_file_default_identity =
 	    std::string(bc_tester_get_resource_dir_prefix())
@@ -1536,21 +1522,16 @@ static void dtls_srtp_call_with_unmatching_client_certificates(void) {
 	               LinphoneMediaEncryptionStatusInactive);
 
 	linphone_call_accept(linphone_core_get_current_call(pauline->lc));
-	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallStreamsRunning, 1));
-	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallStreamsRunning, 1));
-	// DTLS handshake is in progress
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(marie_call)) ==
-	               LinphoneMediaEncryptionStatusInProgress);
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(pauline_call)) ==
-	               LinphoneMediaEncryptionStatusInProgress);
+	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallMediaEncryptionInProgress,
+	                        initial_marie_stats.number_of_LinphoneCallMediaEncryptionInProgress + 1));
+	BC_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallMediaEncryptionInProgress,
+	                        initial_pauline_stats.number_of_LinphoneCallMediaEncryptionInProgress + 1));
 
 	// Check we are encrypted using DTLS: not ok for Marie as Pauline use a valid but not matching
 	// certificate
-	BC_ASSERT_FALSE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallEncryptedOn,
-	                               initial_marie_stats.number_of_LinphoneCallEncryptedOn + 1, 4000));
+	BC_ASSERT_TRUE(wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallMediaEncryptionFailed,
+	                              initial_marie_stats.number_of_LinphoneCallMediaEncryptionFailed + 1, 4000));
 	BC_ASSERT_FALSE(isCurrentCallUsingDtls(marie));
-	BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(linphone_call_get_current_params(marie_call)) ==
-	               LinphoneMediaEncryptionStatusFailed);
 	LinphoneCallStats *marie_stats = linphone_call_get_audio_stats(marie_call);
 	BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(marie_stats) ==
 	               LinphoneMediaEncryptionErrorDtlsCertificateSubjectMismatch);
@@ -1564,11 +1545,12 @@ static void dtls_srtp_call_with_unmatching_client_certificates(void) {
 	if (bctbx_ssl_get_implementation_type() !=
 	    BCTBX_OPENSSL) { // openssl implementation won't send an alert but just hang on the DTLS connection
 		                 // Pauline will not notice it as the SRTP keys are already extracted for her
+		BC_ASSERT_TRUE(wait_for_until(marie->lc, pauline->lc,
+		                              &pauline->stat.number_of_LinphoneCallMediaEncryptionFailed,
+		                              initial_pauline_stats.number_of_LinphoneCallMediaEncryptionFailed + 1, 4000));
 		BC_ASSERT_FALSE(isCurrentCallUsingDtls(pauline));
-		BC_ASSERT_TRUE(linphone_call_params_get_media_encryption_status(
-		                   linphone_call_get_current_params(pauline_call)) == LinphoneMediaEncryptionStatusFailed);
-		LinphoneCallStats *pauline_stats = linphone_call_get_audio_stats(pauline_call);
 		// Pauline has no details on why the handshake failed
+		LinphoneCallStats *pauline_stats = linphone_call_get_audio_stats(pauline_call);
 		BC_ASSERT_TRUE(linphone_call_stats_get_media_encryption_error(pauline_stats) ==
 		               LinphoneMediaEncryptionErrorDtlsHandshakeFail);
 		linphone_call_stats_unref(pauline_stats);

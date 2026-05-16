@@ -767,6 +767,7 @@ typedef enum _LinphoneMediaEncryption {
 
 /**
  * @brief Enum describing the status of media encryption types.
+ * Do not re-order or change the assigned values
  * @ingroup group_media_parameters
  **/
 typedef enum _LinphoneMediaEncryptionStatus {

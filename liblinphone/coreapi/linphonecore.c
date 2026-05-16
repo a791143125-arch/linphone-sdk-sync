@@ -489,6 +489,16 @@ void linphone_core_cbs_set_call_encryption_changed(LinphoneCoreCbs *cbs, Linphon
 	cbs->vtable->call_encryption_changed = cb;
 }
 
+LinphoneCoreCbsCallMediaEncryptionStatusChangedCb
+linphone_core_cbs_get_call_media_encryption_status_changed(LinphoneCoreCbs *cbs) {
+	return cbs->vtable->call_media_encryption_status_changed;
+}
+
+void linphone_core_cbs_set_call_media_encryption_status_changed(LinphoneCoreCbs *cbs,
+                                                                LinphoneCoreCbsCallMediaEncryptionStatusChangedCb cb) {
+	cbs->vtable->call_media_encryption_status_changed = cb;
+}
+
 LinphoneCoreCbsCallSendMasterKeyChangedCb linphone_core_cbs_get_call_send_master_key_changed(LinphoneCoreCbs *cbs) {
 	return cbs->vtable->call_send_master_key_changed;
 }
@@ -8542,6 +8552,23 @@ const char *linphone_media_encryption_to_string(LinphoneMediaEncryption media_en
 			return "LinphoneMediaEncryptionNone";
 	}
 	ms_error("Invalid LinphoneMediaEncryption value %i", (int)media_encryption);
+	return "INVALID";
+}
+
+const char *linphone_media_encryption_status_to_string(LinphoneMediaEncryptionStatus status) {
+	switch (status) {
+		case LinphoneMediaEncryptionStatusFailed:
+			return "Media Encryption Failed";
+		case LinphoneMediaEncryptionStatusInactive:
+			return "Media Encryption Inactive";
+		case LinphoneMediaEncryptionStatusInProgress:
+			return "Media Encryption In Progress";
+		case LinphoneMediaEncryptionStatusZrtpSASCheckRequested:
+			return "Media Encryption Zrtp SAS check requested";
+		case LinphoneMediaEncryptionStatusActive:
+			return "Media Encryption Active";
+	}
+	ms_error("Invalid LinphoneMediaEncryptionSatus value %i", (int)status);
 	return "INVALID";
 }
 

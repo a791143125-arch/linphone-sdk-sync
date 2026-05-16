@@ -122,6 +122,23 @@ LINPHONE_PUBLIC void linphone_call_cbs_set_encryption_changed(LinphoneCallCbs *c
                                                               LinphoneCallCbsEncryptionChangedCb cb);
 
 /**
+ * Get the media encryption status changed callback.
+ * @param cbs #LinphoneCallCbs object. @notnil
+ * @return The current media encryption status changed callback.
+ */
+LINPHONE_PUBLIC LinphoneCallCbsMediaEncryptionStatusChangedCb
+linphone_call_cbs_get_media_encryption_status_changed(LinphoneCallCbs *cbs);
+
+/**
+ * Set the media encryption status changed callback.
+ * @param cbs #LinphoneCallCbs object. @notnil
+ * @param[in] cb The media encryption status changed callback to be used.
+ */
+LINPHONE_PUBLIC void
+linphone_call_cbs_set_media_encryption_status_changed(LinphoneCallCbs *cbs,
+                                                      LinphoneCallCbsMediaEncryptionStatusChangedCb cb);
+
+/**
  * Get the authentication token verified callback.
  * @param cbs #LinphoneCallCbs object. @notnil
  * @return The current authentication token verified callback.
