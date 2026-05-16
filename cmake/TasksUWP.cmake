@@ -55,15 +55,18 @@ endforeach()
 # Build CSharp wrapper for each selected architecture
 ############################################################################
 
+
 set(_UWP_WRAPPER_TARGETS)
 foreach(_UWP_ARCH IN LISTS _UWP_ARCHS)
   ExternalProject_add(uwp-wrapper-${_UWP_ARCH}
-		SOURCE_DIR "${PROJECT_SOURCE_DIR}/cmake/Windows/wrapper"
-		BINARY_DIR "${PROJECT_BINARY_DIR}/uwp-${_UWP_ARCH}/CsWrapper"
-		CMAKE_ARGS "-DLINPHONESDK_DIR=${PROJECT_SOURCE_DIR}" "-DLINPHONESDK_INSTALL_DIR=${PROJECT_BINARY_DIR}/linphone-sdk/uwp-${_UWP_ARCH}" "-DLINPHONE_PLATFORM=${_UWP_ARCH}" "-DWINDOWS_VARIANT=Uwp" "-DBUILD_TYPE=$<IF:$<CONFIG:Debug>,Debug,Release>" ${_UWP_CMAKE_ARGS}
+    SOURCE_DIR "${PROJECT_SOURCE_DIR}/cmake/Windows/wrapper"
+    BINARY_DIR "${PROJECT_BINARY_DIR}/uwp-${_UWP_ARCH}/CsWrapper"
+    CMAKE_ARGS "-DLINPHONESDK_DIR=${PROJECT_SOURCE_DIR}" "-DLINPHONESDK_INSTALL_DIR=${PROJECT_BINARY_DIR}/linphone-sdk/uwp-${_UWP_ARCH}" "-DLINPHONE_PLATFORM=${_UWP_ARCH}" "-DWINDOWS_VARIANT=Uwp" "-DBUILD_TYPE=$<IF:$<CONFIG:Debug>,Debug,Release>" ${_UWP_CMAKE_ARGS}
     DEPENDS uwp-${_UWP_ARCH}
-		BUILD_COMMAND ${CMAKE_COMMAND} -E echo ""
-		INSTALL_COMMAND ${CMAKE_COMMAND} -E echo ""
+    #Using Ninja is the only way found to resolve build error like "Sequence contains no elements" with targets.
+    #Visual use some Nuget.targets on project that doesn't use it.  (like empty cmake target).
+    CMAKE_GENERATOR Ninja
+    INSTALL_COMMAND ${CMAKE_COMMAND} -E echo ""
   )
   list(APPEND _UWP_WRAPPER_TARGETS uwp-wrapper-${_UWP_ARCH})
 endforeach()
