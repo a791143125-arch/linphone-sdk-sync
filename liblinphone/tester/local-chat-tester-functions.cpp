@@ -1097,9 +1097,12 @@ void group_chat_room_with_sip_errors_base(bool invite_error, bool subscribe_erro
 				BC_ASSERT_TRUE(wait_for_list(coresList, &sipErrorClient.getStats().number_of_LinphoneRegistrationOk,
 				                             initialSipErrorClientStats.number_of_LinphoneRegistrationOk + 1,
 				                             liblinphone_tester_sip_timeout));
-				sipErrorClientCr = check_creation_chat_room_client_side(coresList, sipErrorClient.getCMgr(),
-				                                                        &initialSipErrorClientStats, confAddr,
-				                                                        initialSubject, 3, organizer);
+				BC_ASSERT_TRUE(wait_for_list(coresList,
+				                             &sipErrorClient.getStats().number_of_LinphoneChatRoomConferenceJoined,
+				                             initialSipErrorClientStats.number_of_LinphoneChatRoomConferenceJoined + 1,
+				                             liblinphone_tester_sip_timeout));
+				sipErrorClientCr = check_has_chat_room_client_side(coresList, sipErrorClient.getCMgr(), confAddr,
+				                                                   initialSubject, 3, organizer);
 				marieCr = sipErrorClientCr;
 			} else {
 				ms_message("Core %s (contact %s) is restarting", linphone_core_get_identity(sipErrorClient.getLc()),
@@ -1384,8 +1387,11 @@ void group_chat_room_with_sip_errors_base(bool invite_error, bool subscribe_erro
 			BC_ASSERT_TRUE(wait_for_list(coresList, &michelle2.getStats().number_of_LinphoneRegistrationOk,
 			                             initialMichelle2Stats.number_of_LinphoneRegistrationOk + 1,
 			                             liblinphone_tester_sip_timeout));
-			michelle2Cr = check_creation_chat_room_client_side(coresList, michelle2.getCMgr(), &initialMichelle2Stats,
-			                                                   confAddr, initialSubject, 4, FALSE);
+			BC_ASSERT_TRUE(wait_for_list(coresList, &michelle2.getStats().number_of_LinphoneChatRoomConferenceJoined,
+			                             initialMichelle2Stats.number_of_LinphoneChatRoomConferenceJoined + 1,
+			                             liblinphone_tester_sip_timeout));
+			michelle2Cr =
+			    check_has_chat_room_client_side(coresList, michelle2.getCMgr(), confAddr, initialSubject, 4, FALSE);
 			BC_ASSERT_PTR_NOT_NULL(michelle2Cr);
 			BC_ASSERT_FALSE(
 			    wait_for_list(coresList, &michelle2.getStats().number_of_LinphoneChatRoomSessionUpdating, 1, 1000));
@@ -1401,8 +1407,10 @@ void group_chat_room_with_sip_errors_base(bool invite_error, bool subscribe_erro
 			BC_ASSERT_TRUE(wait_for_list(coresList, &berthe.getStats().number_of_LinphoneRegistrationOk,
 			                             initialBertheStats.number_of_LinphoneRegistrationOk + 1,
 			                             liblinphone_tester_sip_timeout));
-			bertheCr = check_creation_chat_room_client_side(coresList, berthe.getCMgr(), &initialBertheStats, confAddr,
-			                                                initialSubject, 4, FALSE);
+			BC_ASSERT_TRUE(wait_for_list(coresList, &berthe.getStats().number_of_LinphoneChatRoomConferenceJoined,
+			                             initialBertheStats.number_of_LinphoneChatRoomConferenceJoined + 1,
+			                             liblinphone_tester_sip_timeout));
+			bertheCr = check_has_chat_room_client_side(coresList, berthe.getCMgr(), confAddr, initialSubject, 4, FALSE);
 			BC_ASSERT_PTR_NOT_NULL(bertheCr);
 			BC_ASSERT_FALSE(
 			    wait_for_list(coresList, &berthe.getStats().number_of_LinphoneChatRoomSessionUpdating, 1, 1000));

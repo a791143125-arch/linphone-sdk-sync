@@ -2595,7 +2595,10 @@ std::shared_ptr<Conference> Core::searchConference(const std::shared_ptr<Confere
 			auto resultSize = resultConferences.size();
 			if (resultSize > 1) {
 				lError() << resultSize
-				         << " conferences have been found but only one will be return by the search function.";
+				         << " conferences have been found but only one will be returned by the search function:";
+				for (const auto &[id, c] : resultConferences) {
+					lError() << "- id " << id << " conference " << *c;
+				}
 			}
 			conference = resultConferences.begin()->second;
 		}
@@ -2617,7 +2620,7 @@ shared_ptr<Conference> Core::searchConference(const std::shared_ptr<const Addres
 
 	if (!conferenceAddress || !conferenceAddress->isValid()) return nullptr;
 	const auto it = std::find_if(d->mConferenceById.begin(), d->mConferenceById.end(), [&](const auto &p) {
-		// p is of type std::pair<ConferenceId, std::shared_ptr<Conference>
+		// p is of type std::pair<ConferenceId, std::shared_ptr<Conference>>
 		const auto &conference = p.second;
 		const auto curConferenceAddress = conference->getConferenceAddress();
 		return (*conferenceAddress == *curConferenceAddress);

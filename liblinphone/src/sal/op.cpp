@@ -209,6 +209,26 @@ void SalOp::setDiversionAddress(const SalAddress *diversion) {
 	mDiversionAddress = diversion ? sal_address_clone(diversion) : nullptr;
 }
 
+const std::string SalOp::getRemote() const {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		return getFrom();
+	} else {
+		return getTo();
+	}
+	return std::string();
+}
+
+const SalAddress *SalOp::getRemoteAddress() const {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		return getFromAddress();
+	} else {
+		return getToAddress();
+	}
+	return nullptr;
+}
+
 int SalOp::refresh() {
 	if (mRefresher) {
 		belle_sip_refresher_refresh(mRefresher, belle_sip_refresher_get_expires(mRefresher));

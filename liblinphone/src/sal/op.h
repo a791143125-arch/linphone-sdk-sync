@@ -91,6 +91,9 @@ public:
 		return mToAddress;
 	}
 
+	const std::string getRemote() const;
+	const SalAddress *getRemoteAddress() const;
+
 	const SalAddress *getRequestAddress() {
 		return mRequestAddress.borrow();
 	}

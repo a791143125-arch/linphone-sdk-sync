@@ -678,13 +678,12 @@ void start_core_for_conference(bctbx_list_t *coreManagerList) {
 	bctbx_list_for_each(coreManagerList, (void (*)(void *))_start_core);
 }
 
-static LinphoneChatRoom *check_has_chat_room_client_side(bctbx_list_t *lcs,
-                                                         LinphoneCoreManager *lcm,
-                                                         BCTBX_UNUSED(stats *initialStats),
-                                                         const LinphoneAddress *confAddr,
-                                                         const char *subject,
-                                                         int participantNumber,
-                                                         bool_t isAdmin) {
+LinphoneChatRoom *check_has_chat_room_client_side(bctbx_list_t *lcs,
+                                                  LinphoneCoreManager *lcm,
+                                                  const LinphoneAddress *confAddr,
+                                                  const char *subject,
+                                                  int participantNumber,
+                                                  bool_t isAdmin) {
 	char *deviceIdentity = linphone_core_get_device_identity(lcm->lc);
 	LinphoneAddress *localAddr = linphone_address_new(deviceIdentity);
 	bctbx_free(deviceIdentity);
@@ -728,7 +727,7 @@ LinphoneChatRoom *check_creation_chat_room_client_side(bctbx_list_t *lcs,
 		                             initialStats->number_of_LinphoneChatRoomConferenceJoined + 1,
 		                             liblinphone_tester_sip_timeout));
 	}
-	return check_has_chat_room_client_side(lcs, lcm, initialStats, confAddr, subject, participantNumber, isAdmin);
+	return check_has_chat_room_client_side(lcs, lcm, confAddr, subject, participantNumber, isAdmin);
 }
 
 void check_create_chat_room_client_side(bctbx_list_t *lcs,
@@ -2960,7 +2959,7 @@ static void group_chat_room_delete_twice(void) {
 	linphone_core_manager_start(laure, TRUE);
 
 	// Check that the chat room has correctly created on Laure's side and that the participants are added
-	laureCr = check_has_chat_room_client_side(coresList, laure, &initialLaureStats, confAddr, initialSubject, 2, FALSE);
+	laureCr = check_has_chat_room_client_side(coresList, laure, confAddr, initialSubject, 2, FALSE);
 end:
 	// Clean db from chat room again
 	linphone_core_manager_delete_chat_room(laure, laureCr, coresList);
@@ -8938,8 +8937,7 @@ static void participant_removed_then_added(void) {
 	linphone_core_manager_start(pauline1, TRUE);
 
 	// Check that the chat room has correctly created on Pauline's side and that the participants are added
-	pauline1Cr =
-	    check_has_chat_room_client_side(coresList, pauline1, &initialPauline1Stats, confAddr, initialSubject, 2, FALSE);
+	pauline1Cr = check_has_chat_room_client_side(coresList, pauline1, confAddr, initialSubject, 2, FALSE);
 
 	// wait for first notify to be received by pauline
 	wait_for_list(coresList, NULL, 0, 1000);
@@ -9170,8 +9168,7 @@ static void group_chat_room_join_one_on_one_chat_room_with_a_new_device_not_noti
 	                             liblinphone_tester_sip_timeout));
 
 	// Marie2 gets the one-on-one chat room with Pauline
-	paulineCr =
-	    check_has_chat_room_client_side(coresList, pauline, &initialPaulineStats, confAddr, initialSubject, 1, FALSE);
+	paulineCr = check_has_chat_room_client_side(coresList, pauline, confAddr, initialSubject, 1, FALSE);
 	marieAddress = linphone_address_new(linphone_core_get_identity(marie2->lc));
 	marieParticipant = linphone_chat_room_find_participant(paulineCr, marieAddress);
 	bctbx_list_t *marieDevices = linphone_participant_get_devices(marieParticipant);
@@ -9197,8 +9194,7 @@ static void group_chat_room_join_one_on_one_chat_room_with_a_new_device_not_noti
 	                             liblinphone_tester_sip_timeout));
 
 	// Marie2 gets the one-on-one chat room with Pauline
-	paulineCr =
-	    check_has_chat_room_client_side(coresList, pauline, &initialPaulineStats, confAddr, initialSubject, 1, FALSE);
+	paulineCr = check_has_chat_room_client_side(coresList, pauline, confAddr, initialSubject, 1, FALSE);
 	marieParticipant = linphone_chat_room_find_participant(paulineCr, marieAddress);
 	marieDevices = linphone_participant_get_devices(marieParticipant);
 	BC_ASSERT_EQUAL((int)bctbx_list_size(marieDevices), 1, int, "%i");
@@ -9241,8 +9237,7 @@ static void group_chat_room_join_one_on_one_chat_room_with_a_new_device_not_noti
 	                             initialMarie1Stats.number_of_LinphoneChatRoomStateCreated + marie1_no_cr,
 	                             liblinphone_tester_sip_timeout));
 	wait_for_list(coresList, NULL, 0, 1000);
-	marie1Cr =
-	    check_has_chat_room_client_side(coresList, marie1, &initialMarie1Stats, confAddr, initialSubject, 1, FALSE);
+	marie1Cr = check_has_chat_room_client_side(coresList, marie1, confAddr, initialSubject, 1, FALSE);
 
 end:
 	if (marie1Cr) linphone_core_manager_delete_chat_room(marie1, marie1Cr, coresList);
@@ -9445,8 +9440,7 @@ static void core_stop_start_with_chat_room_ref(void) {
 	linphone_core_manager_start(pauline1, TRUE);
 
 	// Check that the chat room has correctly created on Laure's side and that the participants are added
-	newPauline1Cr =
-	    check_has_chat_room_client_side(coresList, pauline1, &initialPauline1Stats, confAddr, initialSubject, 1, FALSE);
+	newPauline1Cr = check_has_chat_room_client_side(coresList, pauline1, confAddr, initialSubject, 1, FALSE);
 	wait_for_list(coresList, NULL, 0, 1000);
 
 end:

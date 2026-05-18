@@ -64,8 +64,6 @@ public:
 	}
 	bool reportEvents() const;
 	bool isInConference() const;
-	const std::string getConferenceId() const;
-	void setConferenceId(const std::string id);
 	void setParams(CallSessionParams *csp);
 	void setReferPending(bool value) {
 		referPending = value;

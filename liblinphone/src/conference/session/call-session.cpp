@@ -352,14 +352,6 @@ bool CallSessionPrivate::isInConference() const {
 	return mParams->getPrivate()->getInConference();
 }
 
-const std::string CallSessionPrivate::getConferenceId() const {
-	return mParams->getPrivate()->getConferenceId();
-}
-
-void CallSessionPrivate::setConferenceId(const std::string id) {
-	mParams->getPrivate()->setConferenceId(id);
-}
-
 // -----------------------------------------------------------------------------
 
 void CallSessionPrivate::abort(const string &errorMsg) {

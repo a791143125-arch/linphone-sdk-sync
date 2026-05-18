@@ -43,12 +43,6 @@ public:
 	void setInConference(bool value) {
 		inConference = value;
 	}
-	const char *getConferenceId() const {
-		return conferenceId.c_str();
-	}
-	void setConferenceId(const std::string value) {
-		conferenceId = value;
-	}
 	bool getInternalCallUpdate() const {
 		return internalCallUpdate;
 	}
@@ -124,7 +118,6 @@ private:
 	bool internalCallUpdate = false;
 	bool noUserConsent = false; /* When set to true an UPDATE request will be used instead of reINVITE */
 	SalCustomHeader *customHeaders = nullptr;
-	std::string conferenceId = "";
 	std::string from = "";
 	std::string description = "";
 	std::unordered_map<std::string, std::string> customContactParameters;

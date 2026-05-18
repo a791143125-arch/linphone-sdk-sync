@@ -36,7 +36,6 @@ void CallSessionParamsPrivate::clone(const CallSessionParamsPrivate *src) {
 	privacy = src->privacy;
 	conferenceCreation = src->conferenceCreation;
 	inConference = src->inConference;
-	conferenceId = src->conferenceId;
 	from = src->from;
 	srtpSuites = src->srtpSuites;
 	internalCallUpdate = src->internalCallUpdate;
@@ -221,7 +220,6 @@ void CallSessionParams::initDefault(const std::shared_ptr<Core> &core, BCTBX_UNU
 	d->mergeCfgLines = !!linphone_core_cfg_lines_merging_enabled(cCore);
 	d->supportedEncryptions = core->getSupportedMediaEncryptions();
 	d->disallowZrtp = !!cCore->zrtp_not_available_simulation;
-	d->conferenceId = "";
 	d->from = "";
 	d->srtpSuites = std::list<LinphoneSrtpSuite>{};
 	d->privacy = LinphonePrivacyDefault;
