@@ -165,6 +165,7 @@ static void sync_message_call_logs(bool_t with_call_log_server) {
 	enum TestCases { MISSED_CASE = 0, DECLINED_CASE, ACCEPTED_CASE };
 
 	for (int testCaseIdx = MISSED_CASE; testCaseIdx <= ACCEPTED_CASE; ++testCaseIdx) {
+		ms_message("Starting test case %i", (int)testCaseIdx);
 		// offlineMarie goes to Offline
 		linphone_core_set_network_reachable(offlineMarie->lc, FALSE);
 
@@ -301,6 +302,9 @@ static void sync_message_call_logs(bool_t with_call_log_server) {
 		}
 		_check_call_log(offlineMarie, offlineCallLogRef);
 		_check_call_log(onlineMarie, onlineCallLogRef);
+
+		wait_for_list(lcs, NULL, 0, 5000);
+		bctbx_message("End of test case.");
 	}
 
 	bctbx_list_free(lcs);
