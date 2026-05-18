@@ -1125,19 +1125,11 @@ void MediaSessionPrivate::fixCallParams(std::shared_ptr<SalMediaDescription> &rm
 	if (!rmd) return;
 
 	updateBiggestDesc(rmd);
-	/* Why disabling implicit_rtcp_fb ? It is a local policy choice actually. It doesn't disturb to propose it again and
-	 * again even if the other end apparently doesn't support it. The following line of code is causing trouble, while
-	 * for example making an audio call, then adding video. Due to the 200Ok response of the audio-only offer where no
-	 * rtcp-fb attribute is present, implicit_rtcp_fb is set to false, which is then preventing it to be eventually used
-	 * when video is later added to the call. I did the choice of commenting it out.
-	 */
 
 	const auto conference = q->getCore()->findConference(q->getSharedFromThis(), false);
 	bool isInLocalConference = getParams()->getPrivate()->getInConference();
 	bool isInRemoteConference = conference && !isInLocalConference;
 
-	/*params.getPrivate()->enableImplicitRtcpFb(mParams.getPrivate()->implicitRtcpFbEnabled() &
-	 * sal_media_description_has_implicit_avpf(rmd));*/
 	const MediaSessionParams *rcp = q->getRemoteParams();
 	if (rcp) {
 		/*
@@ -1187,11 +1179,16 @@ void MediaSessionPrivate::fixCallParams(std::shared_ptr<SalMediaDescription> &rm
 		// turn it off if the remote doesn't offer it or rejects it.
 		// In fact, we can have the scenario where bundle mode is only enabled by one of the cores in the call or
 		// conference. If bundle mode has been accepted, then future reINVITEs or UPDATEs must reoffer bundle mode
-		// unless the user has explicitely requested to disable it
-		getParams()->enableRtpBundle(
-		    fromOffer ? (rcp->rtpBundleEnabled() &&
-		                 linphone_config_get_bool(linphone_core_get_config(cCore), "rtp", "accept_bundle", TRUE))
-		              : rcp->rtpBundleEnabled());
+		// unless the user has explicitely requested to disable it.
+		bool rtpBundleEnabled = false;
+		if (fromOffer) {
+			rtpBundleEnabled = (rcp->rtpBundleEnabled() && linphone_config_get_bool(linphone_core_get_config(cCore),
+			                                                                        "rtp", "accept_bundle", TRUE));
+		} else {
+			// Case of a SDP response
+			rtpBundleEnabled = getParams()->rtpBundleEnabled() && rcp->rtpBundleEnabled();
+		}
+		getParams()->enableRtpBundle(rtpBundleEnabled);
 	}
 }
 
@@ -1803,7 +1800,7 @@ void MediaSessionPrivate::fillRtpParameters(SalStreamDescription &stream) const 
 		/* rtcp-mux must be enabled when bundle mode is proposed or we're using DTLS-SRTP.*/
 		cfg.rtcp_mux = rtcpMux || getParams()->rtpBundleEnabled() ||
 		               (getNegotiatedMediaEncryption() == LinphoneMediaEncryptionDTLS);
-		cfg.rtcp_cname = getMe()->getAddress()->toString();
+		cfg.rtcp_cname = getMe()->getAddress()->asStringUriOnly();
 
 		if (stream.rtp_port == 0 && !cfg.isBundleOnly()) {
 			stream.rtp_port = SAL_STREAM_DESCRIPTION_PORT_TO_BE_DETERMINED;
@@ -1979,7 +1976,7 @@ void MediaSessionPrivate::fillLocalStreamDescription(SalStreamDescription &strea
 		stream.rtp_port = SAL_STREAM_DESCRIPTION_PORT_TO_BE_DETERMINED;
 
 		cfg.replacePayloads(codecs);
-		cfg.rtcp_cname = getMe()->getAddress()->toString();
+		cfg.rtcp_cname = getMe()->getAddress()->asStringUriOnly();
 
 		const auto conference = q->getCore()->findConference(q->getSharedFromThis(), false);
 		if (conference || (q->getRemoteContactAddress() != nullptr &&
