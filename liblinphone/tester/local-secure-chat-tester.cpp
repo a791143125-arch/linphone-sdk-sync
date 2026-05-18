@@ -523,7 +523,7 @@ static void secure_group_chat_room_with_client_with_uppercase_username() {
 
 		// Michelle has 3 participants: marie, pauline and a fake participant with pauline's username having some
 		// uppercase letter
-		// The LIME encryption engine doesn't allow the message ot be delivered.
+		// The LIME encryption engine doesn't allow the message to be delivered.
 		BC_ASSERT_EQUAL(linphone_chat_room_get_nb_participants(michelleCr), 3, int, "%0d");
 		LinphoneChatMessage *msg = ClientConference::sendTextMsg(michelleCr, "back with you");
 		BC_ASSERT_TRUE(CoreManagerAssert({focus, marie, michelle, pauline}).wait([msg] {
@@ -2911,11 +2911,11 @@ static void secure_group_chat_message_sent_during_conference_creation(void) {
 	}
 }
 
-static void secure_group_chat_room_with_client_removed_while_stopped_remote_list_event_handler() {
+static void secure_group_chat_room_with_client_removed_while_stopped_with_conference_factory_defined() {
 	group_chat_room_with_client_removed_while_stopped_base(TRUE, TRUE);
 }
 
-static void secure_group_chat_room_with_client_removed_while_stopped_no_remote_list_event_handler() {
+static void secure_group_chat_room_with_client_removed_while_stopped_with_conference_factory_not_defined_at_restart() {
 	group_chat_room_with_client_removed_while_stopped_base(FALSE, TRUE);
 }
 
@@ -2933,6 +2933,10 @@ static void secure_group_chat_room_with_client_removed_and_reinvinted_after_data
 
 static void secure_group_chat_room_with_duplications(void) {
 	group_chat_room_with_duplications_base(true);
+}
+
+static void secure_legacy_and_new_chatrooms_mixed_up(void) {
+	legacy_and_new_chatrooms_mixed_up_base(true);
 }
 
 } // namespace LinphoneTest
@@ -2965,14 +2969,17 @@ static test_t local_conference_secure_chat_tests[] = {
                   LinphoneTest::secure_one_on_one_group_chat_room_deletion_by_server_client,
                   "LimeX3DH",
                   "LeaksMemory"), /* because of network up and down */
-    TEST_TWO_TAGS("Secure group chat with client removed while stopped (Remote Conference List Event Handler)",
-                  LinphoneTest::secure_group_chat_room_with_client_removed_while_stopped_remote_list_event_handler,
-                  "LimeX3DH",
-                  "LeaksMemory"), /* beacause of coreMgr restart*/
-    TEST_TWO_TAGS("Secure group chat with client removed while stopped (No Remote Conference List Event Handler)",
-                  LinphoneTest::secure_group_chat_room_with_client_removed_while_stopped_no_remote_list_event_handler,
-                  "LimeX3DH",
-                  "LeaksMemory"), /* beacause of coreMgr restart*/
+    TEST_TWO_TAGS(
+        "Secure group chat with client removed while stopped (Conference factory defined)",
+        LinphoneTest::secure_group_chat_room_with_client_removed_while_stopped_with_conference_factory_defined,
+        "LimeX3DH",
+        "LeaksMemory"), /* beacause of coreMgr restart*/
+    TEST_TWO_TAGS(
+        "Secure group chat with client removed while stopped (Conference factory not defined at retart)",
+        LinphoneTest::
+            secure_group_chat_room_with_client_removed_while_stopped_with_conference_factory_not_defined_at_restart,
+        "LimeX3DH",
+        "LeaksMemory"), /* beacause of coreMgr restart*/
     TEST_TWO_TAGS("Secure group chat room with client with uppercase username",
                   LinphoneTest::secure_group_chat_room_with_client_with_uppercase_username,
                   "LimeX3DH",
@@ -3053,6 +3060,9 @@ static test_t local_conference_secure_chat_tests[] = {
                 LinphoneTest::secure_group_chat_room_with_client_removed_and_reinvinted),
     TEST_NO_TAG("Secure group chat with client removed and then reinvited after database corruption",
                 LinphoneTest::secure_group_chat_room_with_client_removed_and_reinvinted_after_database_corruption),
+    TEST_ONE_TAG("Secure legacy and new chatrooms mixed up",
+                 LinphoneTest::secure_legacy_and_new_chatrooms_mixed_up,
+                 "LeaksMemory"), /* because of coreMgr restart*/
     TEST_ONE_TAG(
         "Secure group chat with client removed and then reinvited after database corruption and core restart",
         LinphoneTest::

@@ -1468,9 +1468,8 @@ int ServerConference::inviteAddresses(const std::list<std::shared_ptr<Address>> 
 				if (!mConfParams->isHidden()) {
 					L_GET_CPP_PTR_FROM_C_OBJECT(new_params)
 					    ->addCustomContactParameter(Conference::sIsFocusParameter, std::string());
-					if (!confId.empty()) {
-						L_GET_CPP_PTR_FROM_C_OBJECT(new_params)
-						    ->addCustomContactUriParameter(Conference::sConfIdParameter, confId);
+					for (const auto &[key, value] : conferenceAddress->getUriParams()) {
+						L_GET_CPP_PTR_FROM_C_OBJECT(new_params)->addCustomContactUriParameter(key, value);
 					}
 				}
 
@@ -1627,9 +1626,12 @@ shared_ptr<CallSession> ServerConference::makeSession(const std::shared_ptr<Part
 			}
 			currentParams->addCustomContactParameter(Conference::sIsFocusParameter, std::string());
 			if (conferenceAddress) {
+				for (const auto &[key, value] : conferenceAddress->getUriParams()) {
+					currentParams->addCustomContactUriParameter(key, value);
+				}
+
 				const string &confId = conferenceAddress->getUriParamValue(Conference::sConfIdParameter);
 				if (!confId.empty()) {
-					currentParams->addCustomContactUriParameter(Conference::sConfIdParameter, confId);
 					currentParams->getPrivate()->setConferenceId(confId);
 				}
 			}

@@ -3471,7 +3471,8 @@ void MainDbPrivate::updateSchema() {
 	}
 	// ephemeral_enabled is deprecated. Update ephemeral_messages_lifetime from the enable value to keep previous
 	// deactivation.
-	*session << "UPDATE chat_room SET ephemeral_messages_lifetime = 0, ephemeral_messages_not_read_lifetime=0 WHERE ephemeral_enabled = 0;";
+	*session << "UPDATE chat_room SET ephemeral_messages_lifetime = 0, ephemeral_messages_not_read_lifetime=0 WHERE "
+	            "ephemeral_enabled = 0;";
 
 #endif
 }
@@ -5137,18 +5138,21 @@ void MainDb::markChatMessagesAsRead(const ConferenceId &conferenceId) const {
 #endif
 }
 
-void MainDb::updateChatRoomEphemeralLifetime(const ConferenceId &conferenceId, const long lifetime, const long notReadLifetime) const {
+void MainDb::updateChatRoomEphemeralLifetime(const ConferenceId &conferenceId,
+                                             const long lifetime,
+                                             const long notReadLifetime) const {
 #ifdef HAVE_DB_STORAGE
-	int isEphemeralEnabled = lifetime > 0  || notReadLifetime > 0 ? 1 : 0; // Only useful for backward compatibility
+	int isEphemeralEnabled = lifetime > 0 || notReadLifetime > 0 ? 1 : 0; // Only useful for backward compatibility
 	static const string query =
 	    "UPDATE chat_room"
-	    "  SET ephemeral_messages_lifetime = :ephemeralLifetime, ephemeral_messages_not_read_lifetime=:ephemeralNotReadLifetime, ephemeral_enabled = :ephemeralEnabled"
+	    "  SET ephemeral_messages_lifetime = :ephemeralLifetime, "
+	    "ephemeral_messages_not_read_lifetime=:ephemeralNotReadLifetime, ephemeral_enabled = :ephemeralEnabled"
 	    " WHERE id = :chatRoomId";
 	L_DB_TRANSACTION {
 		L_D();
 		const long long &dbChatRoomId = d->selectChatRoomId(conferenceId);
-		*d->dbSession.getBackendSession() << query, soci::use(lifetime), soci::use(notReadLifetime), soci::use(isEphemeralEnabled), soci::use(dbChatRoomId);
-
+		*d->dbSession.getBackendSession() << query, soci::use(lifetime), soci::use(notReadLifetime),
+		    soci::use(isEphemeralEnabled), soci::use(dbChatRoomId);
 		tr.commit();
 	};
 #endif
@@ -6905,7 +6909,8 @@ list<shared_ptr<AbstractChatRoom>> MainDb::getChatRooms() {
 					unsigned int lastNotifyId = d->dbSession.getUnsignedInt(chatRoomRow, 7, 0);
 
 					params->setUtf8Subject(subject);
-					params->getChatParams()->enableEphemeral((long)chatRoomRow.get<double>(11), (long)chatRoomRow.get<double>(12));
+					params->getChatParams()->enableEphemeral((long)chatRoomRow.get<double>(11),
+					                                         (long)chatRoomRow.get<double>(12));
 					const auto &conferenceAddress = conferenceId.getPeerAddress();
 					params->setConferenceAddress(conferenceAddress);
 

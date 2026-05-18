@@ -42,6 +42,8 @@ public:
 	ClientConferenceEventHandlerBase(const std::shared_ptr<Core> &core);
 	virtual ~ClientConferenceEventHandlerBase();
 
+	enum class NotifyParsingResult { Success, Error, NeedFullState };
+
 	// virtual void publish() = 0;
 	virtual bool subscribe() = 0;
 	virtual void unsubscribe();
