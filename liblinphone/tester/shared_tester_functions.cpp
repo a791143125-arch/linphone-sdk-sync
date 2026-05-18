@@ -530,6 +530,7 @@ void _linphone_call_check_nb_active_streams(const LinphoneCall *call,
                                             const size_t nb_text_streams) {
 	BC_ASSERT_EQUAL(Call::toCpp(call)->getMediaStreamsNb(LinphoneStreamTypeAudio), nb_audio_streams, size_t, "%zu");
 	BC_ASSERT_EQUAL(Call::toCpp(call)->getMediaStreamsNb(LinphoneStreamTypeVideo), nb_video_streams, size_t, "%zu");
+	if (Call::toCpp(call)->getMediaStreamsNb(LinphoneStreamTypeVideo) != nb_video_streams) abort();
 	BC_ASSERT_EQUAL(Call::toCpp(call)->getMediaStreamsNb(LinphoneStreamTypeText), nb_text_streams, size_t, "%zu");
 }
 
