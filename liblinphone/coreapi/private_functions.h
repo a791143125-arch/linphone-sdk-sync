@@ -52,6 +52,7 @@ void linphone_call_notify_dtmf_received(LinphoneCall *call, int dtmf);
 void linphone_call_notify_goclear_ack_sent(LinphoneCall *call);
 void linphone_call_notify_security_level_downgraded(LinphoneCall *call);
 void linphone_call_notify_encryption_changed(LinphoneCall *call, bool_t on, const char *authentication_token);
+void linphone_call_notify_media_encryption_status_changed(LinphoneCall *call, LinphoneMediaEncryptionStatus status);
 void linphone_call_notify_authentication_token_verified(LinphoneCall *call, bool_t verified);
 void linphone_call_notify_send_master_key_changed(LinphoneCall *call, const char *master_key);
 void linphone_call_notify_receive_master_key_changed(LinphoneCall *call, const char *master_key);
@@ -181,6 +182,13 @@ void linphone_core_write_auth_info(LinphoneCore *lc, LinphoneAuthInfo *ai);
 void linphone_core_write_auth_infos(LinphoneCore *lc);
 void linphone_core_stop_tone_manager(LinphoneCore *lc);
 LinphoneAuthInfo *_linphone_core_find_tls_auth_info(LinphoneCore *lc);
+bool_t linphone_core_find_tls_cert_in_indexed_auth_infos_with_subject(LinphoneCore *lc,
+                                                                      const char *username,
+                                                                      const char *domain,
+                                                                      const char *subject,
+                                                                      char **certificate_pem,
+                                                                      char **key_pem,
+                                                                      char **fingerprint);
 LinphoneAuthInfo *_linphone_core_find_indexed_tls_auth_info(LinphoneCore *lc, const char *username, const char *domain);
 LinphoneAuthInfo *_linphone_core_find_auth_info(LinphoneCore *lc,
                                                 const char *realm,
@@ -851,6 +859,9 @@ void linphone_core_notify_call_state_changed(LinphoneCore *lc,
                                              LinphoneCallState cstate,
                                              const char *message);
 void linphone_core_notify_call_goclear_ack_sent(LinphoneCore *lc, LinphoneCall *call);
+void linphone_core_notify_call_media_encryption_status_changed(LinphoneCore *lc,
+                                                               LinphoneCall *call,
+                                                               LinphoneMediaEncryptionStatus status);
 void linphone_core_notify_call_encryption_changed(LinphoneCore *lc,
                                                   LinphoneCall *call,
                                                   bool_t on,

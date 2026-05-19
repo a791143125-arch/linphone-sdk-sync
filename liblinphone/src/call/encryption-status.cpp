@@ -24,6 +24,10 @@
 #include "logger/logger.h"
 
 bool EncryptionStatus::isDowngradedComparedTo(const EncryptionStatus &other) const {
+	// When an error is present in current and not the other: downgrade
+	if (mError != LinphoneMediaEncryptionErrorNone && other.getErrorStatus() == LinphoneMediaEncryptionErrorNone) {
+		return true;
+	}
 	return compareMediaEncryption(other) || compareZrtpAuthTagAlgo(other) || compareZrtpCipherAlgo(other) ||
 	       compareZrtpHashAlgo(other) || compareZrtpKeyAgreementAlgo(other) || compareZrtpSasAlgo(other) ||
 	       compareSrtpSendSuite(other) || compareSrtpRecvSuite(other) || compareSrtpSendSource(other) ||
@@ -333,6 +337,9 @@ void EncryptionStatus::setWorstSecurityAlgo(const EncryptionStatus &other) {
 	}
 }
 
+/**
+ * return true if this media encryption is considered weaker than the one given as parameter
+ */
 bool EncryptionStatus::compareMediaEncryption(const EncryptionStatus &other) const {
 	const auto otherMediaEncryption = other.getMediaEncryption();
 	const auto thisMediaEncryption = getMediaEncryption();
@@ -509,4 +516,26 @@ bool EncryptionStatus::compareInnerSrtpRecvSource(const EncryptionStatus &other)
 		lInfo() << __func__ << " : Inner SRTP recv source changed - [Actual] " << mInnerSrtpInfo.recv_source
 		        << " < [Before] " << other.mInnerSrtpInfo.recv_source;
 	return ret;
+}
+
+void EncryptionStatus::setErrorStatus(LinphoneMediaEncryptionError error) {
+	mError = error;
+}
+
+LinphoneMediaEncryptionError EncryptionStatus::getErrorStatus() const {
+	return mError;
+}
+
+std::string EncryptionStatus::getErrorStatusString() const {
+	switch (mError) {
+		case LinphoneMediaEncryptionErrorNone:
+			return std::string();
+		case LinphoneMediaEncryptionErrorDtlsCertificateVerificationFail:
+			return std::string("Dtls Handshake failed to verify peer's certificate");
+		case LinphoneMediaEncryptionErrorDtlsCertificateSubjectMismatch:
+			return std::string("Dtls Handshake success but peer certificate does not match the sip:uri given in SDP");
+		case LinphoneMediaEncryptionErrorDtlsHandshakeFail:
+			return std::string("Dtls Handshake failed for unspecified reason");
+	}
+	return std::string();
 }

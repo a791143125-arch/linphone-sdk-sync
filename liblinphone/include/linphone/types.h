@@ -766,6 +766,35 @@ typedef enum _LinphoneMediaEncryption {
 } LinphoneMediaEncryption;
 
 /**
+ * @brief Enum describing the status of media encryption types.
+ * Do not re-order or change the assigned values
+ * @ingroup group_media_parameters
+ **/
+typedef enum _LinphoneMediaEncryptionStatus {
+	LinphoneMediaEncryptionStatusFailed = -1,    /** media encryption handshake or negotiation failed */
+	LinphoneMediaEncryptionStatusInactive = 0,   /**< No media encryption */
+	LinphoneMediaEncryptionStatusInProgress = 1, /**< media encryption is negotiated, handshake is in progress */
+	LinphoneMediaEncryptionStatusZrtpSASCheckRequested =
+	    2, /** specific to ZRTP: encryption succesfully negotiated but the SAS verification is needed */
+	LinphoneMediaEncryptionStatusActive = 3 /**< media is encrypted */
+} LinphoneMediaEncryptionStatus;
+
+/**
+ * @brief Enum describing the error encountered by the media encryption layer
+ * @ingroup group_media_parameters
+ **/
+typedef enum _LinphoneMediaEncryptionError {
+	LinphoneMediaEncryptionErrorNone = 0,
+	LinphoneMediaEncryptionErrorDtlsCertificateVerificationFail =
+	    1, /**< Could not verify peer's certificate during DTLS handshake */
+	LinphoneMediaEncryptionErrorDtlsCertificateSubjectMismatch =
+	    2, /**< DTLS handshake went well and verified the certificate but it does not hold a SAN or CN matching peer's
+	          sip uri */
+	LinphoneMediaEncryptionErrorDtlsHandshakeFail =
+	    3, /**< DTLS handshake failure (could be from an alert received from peer)*/
+} LinphoneMediaEncryptionError;
+
+/**
  * @brief Enum describing type of SRTP encryption suite
  * @ingroup group_media_parameters
  **/
