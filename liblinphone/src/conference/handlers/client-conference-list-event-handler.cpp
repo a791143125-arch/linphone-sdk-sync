@@ -147,6 +147,12 @@ bool ClientConferenceListEventHandler::subscribe(const shared_ptr<Account> &acco
 		evSub->addCustomHeader("Accept-Encoding", "deflate");
 	}
 	evSub->setProperty("event-handler-private", this);
+
+	shared_ptr<EventCbs> cbs = EventCbs::create();
+	cbs->setUserData(this);
+	cbs->subscribeStateChangedCb = subscribeStateChangedCb;
+	evSub->addCallbacks(cbs);
+
 	auto ret = evSub->send(content);
 	levs.push_back(evSub);
 	startWaitNotifyTimer();
@@ -193,6 +199,33 @@ ClientConferenceListEventHandler::getSubscriptionState(const std::shared_ptr<Add
 
 void ClientConferenceListEventHandler::invalidateSubscription() {
 	levs.clear();
+}
+
+void ClientConferenceListEventHandler::subscribeStateChangedCb(LinphoneEvent *lev, LinphoneSubscriptionState state) {
+	if (state == LinphoneSubscriptionError) {
+		auto ev = dynamic_pointer_cast<EventSubscribe>(Event::toCpp(lev)->getSharedFromThis());
+		auto cbs = ev->getCurrentCallbacks();
+		ClientConferenceListEventHandler *handler = static_cast<ClientConferenceListEventHandler *>(cbs->getUserData());
+		const auto &from = ev->getFrom();
+		handler->detachFromConferences(from);
+	}
+}
+
+void ClientConferenceListEventHandler::detachFromConferences(const std::shared_ptr<Address> &from) {
+	// Remove subscription underway flag from all handlers matching the account that sent the subscription
+	auto it = handlers.begin();
+	while (it != handlers.end()) {
+		try {
+			auto keyHandlerPair = *it;
+			it++;
+			std::shared_ptr<ClientConferenceEventHandler> handler(keyHandlerPair.second);
+			const ConferenceId &conferenceId = handler->getConferenceId();
+			if (from->weakEqual(*conferenceId.getLocalAddress())) {
+				removeHandler(handler);
+			}
+		} catch (const bad_weak_ptr &) {
+		}
+	}
 }
 
 void ClientConferenceListEventHandler::notifyReceived(std::shared_ptr<Event> notifyLev,

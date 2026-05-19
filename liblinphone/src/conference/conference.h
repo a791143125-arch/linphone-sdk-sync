@@ -372,7 +372,7 @@ public:
 
 	void resetLastNotify();
 
-	void setConferenceId(const ConferenceId &conferenceId);
+	void setConferenceId(const ConferenceId &conferenceId, bool storeInRAM);
 
 	inline long getCreationDurationMs() const {
 		return mCreationDurationMs;

@@ -3023,6 +3023,13 @@ void group_chat_room_with_client_removed_and_reinvinted_base(bool encrypted,
 			}
 		}
 
+		if (corrupt_database && !restart_core_after_corruption) {
+			BC_ASSERT_TRUE(wait_for_list(coresList, &laure.getStats().number_of_LinphoneSubscriptionError, 1,
+			               liblinphone_tester_sip_timeout));
+		} else {
+			BC_ASSERT_FALSE(wait_for_list(coresList, &laure.getStats().number_of_LinphoneSubscriptionOutgoingProgress, 1, 1000));
+		}
+
 		initialMarieStats = marie.getStats();
 		initialPaulineStats = pauline.getStats();
 		initialLaureStats = laure.getStats();
