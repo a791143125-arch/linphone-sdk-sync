@@ -2754,7 +2754,6 @@ void linphone_core_manager_init2(LinphoneCoreManager *mgr, BCTBX_UNUSED(const ch
 	linphone_core_cbs_set_subscribe_received(mgr->cbs, linphone_subscribe_received);
 	linphone_core_cbs_set_publish_received(mgr->cbs, linphone_publish_received);
 	linphone_core_cbs_set_configuring_status(mgr->cbs, linphone_configuration_status);
-	linphone_core_cbs_set_call_encryption_changed(mgr->cbs, linphone_call_encryption_changed);
 	linphone_core_cbs_set_call_media_encryption_status_changed(mgr->cbs, linphone_call_media_encryption_status_changed);
 	linphone_core_cbs_set_call_send_master_key_changed(mgr->cbs, linphone_call_send_master_key_changed);
 	linphone_core_cbs_set_call_receive_master_key_changed(mgr->cbs, linphone_call_receive_master_key_changed);
@@ -4242,38 +4241,24 @@ void linphone_call_media_encryption_status_changed(LinphoneCore *lc,
 	switch (status) {
 		case LinphoneMediaEncryptionStatusFailed:
 			counters->number_of_LinphoneCallMediaEncryptionFailed++;
+			counters->number_of_LinphoneCallEncryptedOff++;
 			break;
 		case LinphoneMediaEncryptionStatusInactive:
 			counters->number_of_LinphoneCallMediaEncryptionInactive++;
+			counters->number_of_LinphoneCallEncryptedOff++;
 			break;
 		case LinphoneMediaEncryptionStatusInProgress:
 			counters->number_of_LinphoneCallMediaEncryptionInProgress++;
 			break;
 		case LinphoneMediaEncryptionStatusZrtpSASCheckRequested:
 			counters->number_of_LinphoneCallMediaEncryptionZrtpSasCheckRequested++;
+			counters->number_of_LinphoneCallEncryptedOn++;
 			break;
 		case LinphoneMediaEncryptionStatusActive:
 			counters->number_of_LinphoneCallMediaEncryptionActive++;
+			counters->number_of_LinphoneCallEncryptedOn++;
 			break;
 	}
-}
-
-void linphone_call_encryption_changed(LinphoneCore *lc,
-                                      LinphoneCall *call,
-                                      bool_t on,
-                                      BCTBX_UNUSED(const char *authentication_token)) {
-	LinphoneCallLog *calllog = linphone_call_get_call_log(call);
-	char *to = linphone_address_as_string(linphone_call_log_get_to_address(calllog));
-	char *from = linphone_address_as_string(linphone_call_log_get_from_address(calllog));
-	stats *counters;
-	ms_message(" %s call from [%s] to [%s], is now [%s]",
-	           linphone_call_log_get_dir(calllog) == LinphoneCallIncoming ? "Incoming" : "Outgoing", from, to,
-	           (on ? "encrypted" : "unencrypted"));
-	ms_free(to);
-	ms_free(from);
-	counters = get_stats(lc);
-	if (on) counters->number_of_LinphoneCallEncryptedOn++;
-	else counters->number_of_LinphoneCallEncryptedOff++;
 }
 
 void linphone_call_send_master_key_changed(LinphoneCore *lc,

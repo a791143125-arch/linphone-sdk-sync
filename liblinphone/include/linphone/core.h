@@ -781,16 +781,18 @@ LINPHONE_PUBLIC LinphoneCoreCbsCallGoClearAckSentCb linphone_core_cbs_get_call_g
  * Sets the #LinphoneCoreCbsCallEncryptionChangedCb callback.
  * @param cbs A #LinphoneCoreCbs. @notnil
  * @param cb The callback.
+ * @deprecated 19/05/2026 use linphone_core_cbs_set_call_media_encryption_status_changed instead
  */
-LINPHONE_PUBLIC void linphone_core_cbs_set_call_encryption_changed(LinphoneCoreCbs *cbs,
-                                                                   LinphoneCoreCbsCallEncryptionChangedCb cb);
+LINPHONE_PUBLIC LINPHONE_DEPRECATED void
+linphone_core_cbs_set_call_encryption_changed(LinphoneCoreCbs *cbs, LinphoneCoreCbsCallEncryptionChangedCb cb);
 
 /**
  * Gets the #LinphoneCoreCbsCallEncryptionChangedCb callback.
  * @param cbs A #LinphoneCoreCbs. @notnil
  * @return The callback.
+ * @deprecated 19/05/2026 use linphone_core_cbs_get_call_media_encryption_status_changed instead
  */
-LINPHONE_PUBLIC LinphoneCoreCbsCallEncryptionChangedCb
+LINPHONE_PUBLIC LINPHONE_DEPRECATED LinphoneCoreCbsCallEncryptionChangedCb
 linphone_core_cbs_get_call_encryption_changed(LinphoneCoreCbs *cbs);
 
 /**
