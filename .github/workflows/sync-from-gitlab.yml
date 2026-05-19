@@ -36,13 +36,11 @@ jobs:
 
       - name: Fetch from GitLab
         run: |
-          git fetch gitlab --all --tags
+          git fetch gitlab --tags
 
       - name: Update submodules
         run: |
           git submodule update --init --recursive
-          git submodule foreach --recursive git fetch origin
-          git submodule foreach --recursive git merge origin/master || git submodule foreach --recursive git merge origin/main || true
 
       - name: Merge GitLab main branch
         run: |
@@ -51,13 +49,13 @@ jobs:
 
       - name: Push to GitHub
         run: |
-          git push origin --all --force-with-lease
-          git push origin --tags --force-with-lease
+          git push origin --all
+          git push origin --tags
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push submodule updates
         run: |
-          git submodule foreach --recursive 'git push origin HEAD:refs/heads/master || git push origin HEAD:refs/heads/main || true'
+          git submodule foreach --recursive 'git push origin HEAD:$(git rev-parse --abbrev-ref HEAD) || true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
