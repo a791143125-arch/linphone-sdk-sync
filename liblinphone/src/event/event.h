@@ -1,0 +1,165 @@
+/*
+ * Copyright (c) 2010-2023 Belledonne Communications SARL.
+ *
+ * This file is part of Liblinphone
+ * (see https://gitlab.linphone.org/BC/public/liblinphone).
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _L_EVENT_H_
+#define _L_EVENT_H_
+
+#include "belle-sip/object++.hh"
+
+#include "c-wrapper/c-wrapper.h"
+#include "core/core-accessor.h"
+#include "linphone/api/c-callbacks.h"
+#include "linphone/api/c-types.h"
+#include "sal/event-op.h"
+
+// =============================================================================
+
+LINPHONE_BEGIN_NAMESPACE
+class Event;
+
+/* Use this class to inherint a listener used internally */
+class EventListener : public ListenerBase {
+public:
+	virtual ~EventListener() = default;
+	virtual void notifyResponse(const std::shared_ptr<Event> &) {};
+	virtual void notifyReceived(const std::shared_ptr<Event> &, const std::shared_ptr<Content> &) {};
+	virtual void subscribeReceived(const std::shared_ptr<Event> &) {};
+	virtual void subscribeStateChanged(const std::shared_ptr<Event> &, LinphoneSubscriptionState) {};
+	virtual void publishStateChanged(const std::shared_ptr<Event> &, LinphonePublishState) {};
+};
+
+/* This class maps to the LinphoneEventCbs object, that contains Event's callbacks. */
+class EventCbs : public bellesip::HybridObject<LinphoneEventCbs, EventCbs>, public EventListener {
+public:
+	virtual void notifyResponse(const std::shared_ptr<Event> &event) override;
+	virtual void notifyReceived(const std::shared_ptr<Event> &event, const std::shared_ptr<Content> &content) override;
+	virtual void subscribeReceived(const std::shared_ptr<Event> &event) override;
+	virtual void subscribeStateChanged(const std::shared_ptr<Event> &event, LinphoneSubscriptionState state) override;
+	virtual void publishStateChanged(const std::shared_ptr<Event> &event, LinphonePublishState state) override;
+	LinphoneEventCbsNotifyResponseCb mNotifyResponseCb{};
+	LinphoneEventCbsNotifyReceivedCb notifyReceivedCb{};
+	LinphoneEventCbsSubscribeReceivedCb subscribeReceivedCb{};
+	LinphoneEventCbsSubscribeStateChangedCb subscribeStateChangedCb{};
+	LinphoneEventCbsPublishReceivedCb publishReceivedCb{};
+	LinphoneEventCbsPublishStateChangedCb publishStateChangedCb{};
+};
+
+class Core;
+
+class LINPHONE_PUBLIC Event : public bellesip::HybridObject<LinphoneEvent, Event>,
+                              public CallbacksHolder<EventCbs, EventListener>,
+                              public CoreAccessor,
+                              public UserDataAccessor,
+                              public PropertyContainer {
+public:
+	Event(const std::shared_ptr<Core> &core);
+
+	virtual ~Event();
+
+	virtual LinphoneStatus send(const std::shared_ptr<const Content> &body) = 0;
+	virtual LinphoneStatus update(const std::shared_ptr<const Content> &body) = 0;
+	virtual LinphoneStatus refresh() = 0;
+	virtual LinphoneStatus accept() = 0;
+	virtual LinphoneStatus deny(LinphoneReason reason) = 0;
+
+	LinphoneReason getReason() const;
+
+	const LinphoneErrorInfo *getErrorInfo() const;
+
+	void setInternal(bool internal);
+	bool isInternal();
+
+	void addCustomHeader(const std::string &name, const std::string &value);
+	void removeCustomHeader(const std::string &name);
+	const char *getCustomHeaderCstr(const std::string &name);
+	std::string getCustomHeader(const std::string &name);
+
+	const std::string &getName() const;
+
+	std::shared_ptr<Address> getFrom() const;
+	void setFrom(const std::shared_ptr<Address> &fromAddress);
+
+	std::shared_ptr<Address> getTo() const;
+	void setTo(const std::shared_ptr<Address> &toAddress);
+
+	const std::string &getCallId() const;
+
+	std::shared_ptr<Address> getRemoteContact() const;
+
+	std::shared_ptr<Address> getResource() const;
+
+	std::shared_ptr<Address> getRequestAddress() const;
+	void setRequestAddress(const std::shared_ptr<const Address> &requestAddress);
+
+	LinphonePrivate::SalEventOp *getOp() const;
+	void setManualRefresherMode(bool manual);
+
+	int getExpires() const;
+	void setExpires(int expires);
+
+	/* The privacy policy is determined automatically from the used Account,
+	 * however it is possible to override it using this method.*/
+	void overridePrivacy(LinphonePrivacyMask privacy);
+
+	void setUnrefWhenTerminated(bool unrefWhenTerminated);
+
+	virtual void unpublish() = 0;
+
+	void release();
+
+	virtual void terminate() = 0;
+
+protected:
+	std::shared_ptr<Address> cacheFrom() const;
+	std::shared_ptr<Address> cacheTo() const;
+	std::shared_ptr<Address> cacheRequestAddress() const;
+	void fillOpFields();
+
+	mutable std::shared_ptr<Address> mFromAddress = nullptr;
+	mutable std::shared_ptr<Address> mToAddress = nullptr;
+	mutable std::shared_ptr<Address> mRemoteContactAddress = nullptr;
+	mutable std::shared_ptr<Address> mRequestAddress = nullptr;
+	LinphonePrivate::SalEventOp *mOp = nullptr;
+	SalCustomHeader *mSendCustomHeaders = nullptr;
+	std::string mName;
+
+	int mExpires;
+
+	bool mInternal = false;
+	bool mUnrefWhenTerminated = false;
+
+private:
+	mutable LinphoneErrorInfo *mEi = nullptr;
+};
+
+inline std::ostream &operator<<(std::ostream &str, const Event &event) {
+	str << event.toString();
+	return str;
+}
+
+class EventLogContextualizer : public CoreLogContextualizer {
+public:
+	EventLogContextualizer(const LinphoneEvent *ev) : CoreLogContextualizer(*Event::toCpp(ev)) {
+	}
+};
+
+LINPHONE_END_NAMESPACE
+
+#endif // ifndef _L_EVENT_H_
