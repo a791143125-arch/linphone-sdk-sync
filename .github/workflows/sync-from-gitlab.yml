@@ -1,4 +1,4 @@
-name: Sync from GitLab
+name: Sync and Fork All Submodules from GitLab
 
 on:
   schedule:
@@ -6,13 +6,116 @@ on:
     - cron: '0 0 * * *'
   # Allow manual trigger
   workflow_dispatch:
+    inputs:
+      fork_only:
+        description: 'Only fork submodules without syncing'
+        required: false
+        default: 'false'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GITHUB_USER: a791143125-arch
 
 jobs:
+  fork-submodules:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.fork_only == 'true' || github.event_name == 'schedule'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Fork all GitLab submodules to GitHub
+        run: |
+          # GitHub API token
+          GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          GITHUB_USER="${{ env.GITHUB_USER }}"
+          
+          # Array of GitLab submodules to fork
+          declare -a SUBMODULES=(
+              "bcg729"
+              "bcmatroska2"
+              "external/mbedtls"
+              "external/bv16-floatingpoint"
+              "external/speex"
+              "external/libvpx"
+              "external/opus"
+              "external/gsm"
+              "external/srtp"
+              "external/libxml2"
+              "external/zlib"
+              "external/openh264"
+              "external/libjpeg-turbo"
+              "external/xerces-c"
+              "external/soci"
+              "external/sqlite3"
+              "external/codec2"
+              "external/decaf"
+              "external/zxing-cpp"
+              "external/vo-amrwbenc"
+              "external/opencore-amr"
+              "external/openldap"
+              "external/jsoncpp"
+              "external/libyuv"
+              "external/liboqs"
+              "external/dav1d"
+              "external/aom"
+              "external/rnnoise"
+              "external/cpp-httplib"
+          )
+          
+          echo "🚀 Starting fork process for all submodules..."
+          echo "GitHub user: $GITHUB_USER"
+          echo "Number of submodules to fork: ${#SUBMODULES[@]}"
+          echo ""
+          
+          for submodule in "${SUBMODULES[@]}"; do
+              # Convert path to repo name (replace / with -)
+              repo_name=$(echo "$submodule" | tr '/' '-')
+              gitlab_url="https://gitlab.linphone.org/BC/public/${submodule}.git"
+              
+              echo "Processing: $submodule -> $repo_name"
+              
+              # Check if repo already exists on GitHub
+              REPO_CHECK=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/$GITHUB_USER/$repo_name")
+              
+              if echo "$REPO_CHECK" | grep -q '"id"'; then
+                  echo "  ✓ Repository already exists: $GITHUB_USER/$repo_name"
+              else
+                  echo "  → Importing from GitLab: $gitlab_url"
+                  
+                  # Use GitHub's import API
+                  IMPORT_RESPONSE=$(curl -s -X POST \
+                      -H "Authorization: token $GITHUB_TOKEN" \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      "https://api.github.com/user/imports" \
+                      -d "{
+                          \"vcs\": \"git\",
+                          \"vcs_username\": \"\",
+                          \"vcs_password\": \"\",
+                          \"repository_name\": \"$repo_name\",
+                          \"repository_description\": \"Linphone SDK submodule: $submodule\",
+                          \"private\": false,
+                          \"repository_url\": \"$gitlab_url\"
+                      }")
+                  
+                  if echo "$IMPORT_RESPONSE" | grep -q '"status"'; then
+                      echo "  ✓ Import started for $repo_name"
+                  else
+                      echo "  ✗ Failed to import $repo_name"
+                      echo "    Response: $IMPORT_RESPONSE"
+                  fi
+              fi
+              
+              echo ""
+              sleep 1  # Rate limiting
+          done
+          
+          echo "✅ Fork process completed!"
+
   sync:
     runs-on: ubuntu-latest
+    needs: fork-submodules
     permissions:
       contents: write
 
@@ -36,26 +139,60 @@ jobs:
 
       - name: Fetch from GitLab
         run: |
+          echo "📥 Fetching from GitLab..."
           git fetch gitlab --tags
+          git fetch gitlab main 2>/dev/null || git fetch gitlab master 2>/dev/null || echo "No main/master branch found"
 
-      - name: Update submodules
+      - name: Update all submodules
         run: |
+          echo "🔄 Updating submodules..."
           git submodule update --init --recursive
+          git submodule foreach --recursive 'git fetch origin --tags 2>/dev/null || true'
 
-      - name: Merge GitLab main branch
+      - name: Merge GitLab updates to main repo
         run: |
-          # Try to merge main branch if it exists, otherwise master
-          git merge gitlab/main --allow-unrelated-histories --no-edit || git merge gitlab/master --allow-unrelated-histories --no-edit || echo "No changes to merge"
+          echo "🔀 Merging GitLab updates..."
+          git merge gitlab/main --allow-unrelated-histories --no-edit 2>/dev/null || \
+          git merge gitlab/master --allow-unrelated-histories --no-edit 2>/dev/null || \
+          echo "ℹ️  No changes to merge in main repo"
 
-      - name: Push to GitHub
+      - name: Update submodules to latest commits
         run: |
-          git push origin --all
-          git push origin --tags
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "📦 Updating submodules to latest..."
+          git submodule foreach --recursive 'git merge origin/main --no-edit 2>/dev/null || git merge origin/master --no-edit 2>/dev/null || echo "Already up to date"'
 
-      - name: Push submodule updates
+      - name: Push main repository to GitHub
         run: |
-          git submodule foreach --recursive 'git push origin HEAD:$(git rev-parse --abbrev-ref HEAD) || true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "📤 Pushing main repo..."
+          git push origin --all --quiet 2>/dev/null || echo "Main repo up to date"
+          git push origin --tags --quiet 2>/dev/null || echo "Tags up to date"
+
+      - name: Push all submodules to GitHub
+        run: |
+          echo "📤 Pushing submodules..."
+          git submodule foreach --recursive 'git push origin HEAD:$(git rev-parse --abbrev-ref HEAD) --quiet 2>/dev/null || echo "Submodule $name up to date"'
+
+      - name: Commit and push submodule pointer updates
+        run: |
+          echo "💾 Committing submodule updates..."
+          if ! git diff-index --quiet HEAD --; then
+            git add -A
+            git commit -m "chore: sync submodules from GitLab" --quiet
+            git push origin --quiet
+            echo "✅ Submodule pointers updated"
+          else
+            echo "ℹ️  No submodule changes to commit"
+          fi
+
+      - name: Print sync summary
+        run: |
+          echo ""
+          echo "================================"
+          echo "✅ Sync completed at $(date)"
+          echo "================================"
+          echo ""
+          echo "📋 Main repo branches:"
+          git branch -r | head -10
+          echo ""
+          echo "📦 Submodules status:"
+          git submodule foreach 'echo "  $name: $(git rev-parse --short HEAD)"' | head -10
