@@ -1,4 +1,4 @@
-name: Sync and Fork All Submodules from GitLab
+name: Sync Submodules One by One from GitLab
 
 on:
   schedule:
@@ -10,13 +10,38 @@ env:
   GITHUB_USER: a791143125-arch
 
 jobs:
-  fork-submodules:
+  fork-and-sync-submodules:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Fork all GitLab submodules to GitHub and wait for completion
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync main repository from GitLab
+        run: |
+          echo "📥 Syncing main repository from GitLab..."
+          git remote add gitlab https://gitlab.linphone.org/BC/public/linphone-sdk.git || true
+          git remote set-url gitlab https://gitlab.linphone.org/BC/public/linphone-sdk.git
+          git fetch gitlab --tags
+          git fetch gitlab main 2>/dev/null || git fetch gitlab master 2>/dev/null || true
+          git merge gitlab/main --allow-unrelated-histories --no-edit 2>/dev/null || \
+          git merge gitlab/master --allow-unrelated-histories --no-edit 2>/dev/null || true
+          echo "📤 Pushing to GitHub..."
+          git push origin --all --quiet 2>/dev/null || true
+          git push origin --tags --quiet 2>/dev/null || true
+          echo "✅ Main repo synced!"
+
+      - name: Process submodules sequentially
         run: |
           GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           GITHUB_USER="${{ env.GITHUB_USER }}"
@@ -53,109 +78,160 @@ jobs:
               "external/cpp-httplib"
           )
           
-          echo "🚀 Starting fork and import process..."
-          echo "Submodules to fork: ${#SUBMODULES[@]}"
+          total=${#SUBMODULES[@]}
+          current=0
           
-          # Step 1: Submit all imports
           for submodule in "${SUBMODULES[@]}"; do
+              current=$((current + 1))
               repo_name=$(echo "$submodule" | tr '/' '-')
               gitlab_url="https://gitlab.linphone.org/BC/public/${submodule}.git"
+              github_url="https://github.com/$GITHUB_USER/$repo_name.git"
               
+              echo ""
+              echo "[$current/$total] 🔄 $submodule"
+              
+              # Fork if needed
               REPO_CHECK=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                  "https://api.github.com/repos/$GITHUB_USER/$repo_name")
+                  "https://api.github.com/repos/$GITHUB_USER/$repo_name" | grep -o '"id"' || true)
               
-              if echo "$REPO_CHECK" | grep -q '"id"'; then
-                  echo "✓ $repo_name exists"
-              else
-                  curl -s -X POST \
-                      -H "Authorization: token $GITHUB_TOKEN" \
+              if [ -z "$REPO_CHECK" ]; then
+                  echo "  🍴 Forking..."
+                  curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
                       -H "Accept: application/vnd.github.v3+json" \
                       "https://api.github.com/user/imports" \
-                      -d "{
-                          \"vcs\": \"git\",
-                          \"repository_name\": \"$repo_name\",
-                          \"repository_description\": \"Linphone SDK: $submodule\",
-                          \"private\": false,
-                          \"repository_url\": \"$gitlab_url\"
-                      }" > /dev/null
-                  echo "→ $repo_name import started"
-              fi
-              sleep 1
-          done
-          
-          echo ""
-          echo "⏳ Waiting for all imports to complete..."
-          
-          # Step 2: Wait for all imports
-          max_wait=1800  # 30 minutes
-          wait_time=0
-          check_interval=10
-          
-          while [ $wait_time -lt $max_wait ]; do
-              all_complete=true
-              
-              for submodule in "${SUBMODULES[@]}"; do
-                  repo_name=$(echo "$submodule" | tr '/' '-')
+                      -d "{\"vcs\":\"git\",\"repository_name\":\"$repo_name\",\"private\":false,\"repository_url\":\"$gitlab_url\"}" > /dev/null
+                  sleep 3
                   
-                  REPO_CHECK=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                      "https://api.github.com/repos/$GITHUB_USER/$repo_name")
-                  
-                  if ! echo "$REPO_CHECK" | grep -q '"id"'; then
-                      all_complete=false
-                      break
-                  fi
-              done
-              
-              if [ "$all_complete" = "true" ]; then
-                  echo "✅ All submodules ready!"
-                  break
+                  # Wait for fork
+                  for i in {1..120}; do
+                      READY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                          "https://api.github.com/repos/$GITHUB_USER/$repo_name" | grep -o '"id"' || true)
+                      if [ ! -z "$READY" ]; then
+                          echo "  ✓ Fork ready"
+                          break
+                      fi
+                      sleep 5
+                  done
+              else
+                  echo "  ✓ Already exists"
               fi
               
-              echo "⏳ Waiting... ($wait_time/$max_wait seconds)"
-              sleep $check_interval
-              wait_time=$((wait_time + check_interval))
+              # Sync
+              echo "  📥 Cloning from GitLab..."
+              git_dir="/tmp/sub_$repo_name"
+              rm -rf "$git_dir" 2>/dev/null || true
+              git clone --bare "$gitlab_url" "$git_dir" 2>/dev/null || continue
+              
+              echo "  📤 Pushing to GitHub..."
+              cd "$git_dir"
+              git push --mirror "$github_url" 2>/dev/null || true
+              cd - > /dev/null
+              rm -rf "$git_dir"
+              
+              echo "  ✅ Done"
           done
 
-  sync:
-    runs-on: ubuntu-latest
-    needs: fork-submodules
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout with submodules
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure git
+      - name: Update .gitmodules
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Add GitLab remote
-        run: |
-          git remote add gitlab https://gitlab.linphone.org/BC/public/linphone-sdk.git || true
-          git remote set-url gitlab https://gitlab.linphone.org/BC/public/linphone-sdk.git
-
-      - name: Sync from GitLab
-        run: |
-          git fetch gitlab --tags
-          git fetch gitlab main 2>/dev/null || git fetch gitlab master 2>/dev/null || true
-          git merge gitlab/main --allow-unrelated-histories --no-edit 2>/dev/null || \
-          git merge gitlab/master --allow-unrelated-histories --no-edit 2>/dev/null || true
-
-      - name: Update submodules
-        run: |
-          git submodule foreach --recursive 'git fetch origin --tags 2>/dev/null || true'
-
-      - name: Push to GitHub
-        run: |
-          git push origin --all --quiet 2>/dev/null || true
-          git push origin --tags --quiet 2>/dev/null || true
-          git submodule foreach --recursive 'git push origin HEAD:$(git rev-parse --abbrev-ref HEAD) --quiet 2>/dev/null || true'
+          cat > .gitmodules << 'EOF'
+          [submodule "bcg729"]
+          	path = bcg729
+          	url = https://github.com/a791143125-arch/bcg729.git
+          [submodule "bcmatroska2"]
+          	path = bcmatroska2
+          	url = https://github.com/a791143125-arch/bcmatroska2.git
+          [submodule "external/mbedtls"]
+          	path = external/mbedtls
+          	url = https://github.com/a791143125-arch/external-mbedtls.git
+          [submodule "external/bv16-floatingpoint"]
+          	path = external/bv16-floatingpoint
+          	url = https://github.com/a791143125-arch/external-bv16-floatingpoint.git
+          [submodule "external/speex"]
+          	path = external/speex
+          	url = https://github.com/a791143125-arch/external-speex.git
+          [submodule "external/libvpx"]
+          	path = external/libvpx
+          	url = https://github.com/a791143125-arch/external-libvpx.git
+          [submodule "external/opus"]
+          	path = external/opus
+          	url = https://github.com/a791143125-arch/external-opus.git
+          [submodule "external/gsm"]
+          	path = external/gsm
+          	url = https://github.com/a791143125-arch/external-gsm.git
+          [submodule "external/srtp"]
+          	path = external/srtp
+          	url = https://github.com/a791143125-arch/external-srtp.git
+          [submodule "external/libxml2"]
+          	path = external/libxml2
+          	url = https://github.com/a791143125-arch/external-libxml2.git
+          [submodule "external/zlib"]
+          	path = external/zlib
+          	url = https://github.com/a791143125-arch/external-zlib.git
+          [submodule "external/openh264"]
+          	path = external/openh264
+          	url = https://github.com/a791143125-arch/external-openh264.git
+          [submodule "external/libjpeg-turbo"]
+          	path = external/libjpeg-turbo
+          	url = https://github.com/a791143125-arch/external-libjpeg-turbo.git
+          [submodule "external/xerces-c"]
+          	path = external/xerces-c
+          	url = https://github.com/a791143125-arch/external-xerces-c.git
+          [submodule "external/soci"]
+          	path = external/soci
+          	url = https://github.com/a791143125-arch/external-soci.git
+          [submodule "external/sqlite3"]
+          	path = external/sqlite3
+          	url = https://github.com/a791143125-arch/external-sqlite3.git
+          [submodule "external/codec2"]
+          	path = external/codec2
+          	url = https://github.com/a791143125-arch/external-codec2.git
+          [submodule "external/decaf"]
+          	path = external/decaf
+          	url = https://github.com/a791143125-arch/external-decaf.git
+          [submodule "external/zxing-cpp"]
+          	path = external/zxing-cpp
+          	url = https://github.com/a791143125-arch/external-zxing-cpp.git
+          [submodule "external/vo-amrwbenc"]
+          	path = external/vo-amrwbenc
+          	url = https://github.com/a791143125-arch/external-vo-amrwbenc.git
+          [submodule "external/opencore-amr"]
+          	path = external/opencore-amr
+          	url = https://github.com/a791143125-arch/external-opencore-amr.git
+          [submodule "external/openldap"]
+          	path = external/openldap
+          	url = https://github.com/a791143125-arch/external-openldap.git
+          [submodule "external/jsoncpp"]
+          	path = external/jsoncpp
+          	url = https://github.com/a791143125-arch/external-jsoncpp.git
+          [submodule "external/libyuv"]
+          	path = external/libyuv
+          	url = https://github.com/a791143125-arch/external-libyuv.git
+          [submodule "external/liboqs"]
+          	path = external/liboqs
+          	url = https://github.com/a791143125-arch/external-liboqs.git
+          [submodule "external/dav1d"]
+          	path = external/dav1d
+          	url = https://github.com/a791143125-arch/external-dav1d.git
+          [submodule "external/aom"]
+          	path = external/aom
+          	url = https://github.com/a791143125-arch/external-aom.git
+          [submodule "external/rnnoise"]
+          	path = external/rnnoise
+          	url = https://github.com/a791143125-arch/external-rnnoise.git
+          [submodule "tester/cpp-httplib"]
+          	path = belle-sip/tester/cpp-httplib
+          	url = https://github.com/a791143125-arch/external-cpp-httplib.git
+          [submodule "oboe"]
+          	path = msoboe/oboe
+          	url = https://github.com/google/oboe
+          [submodule "external/hidapi"]
+          	path = external/hidapi
+          	url = https://github.com/libusb/hidapi.git
+          EOF
+          
+          git add .gitmodules
+          git commit -m "chore: update .gitmodules to use GitHub URLs" || true
+          git push origin --quiet 2>/dev/null || true
 
       - name: Summary
-        run: echo "✅ Sync completed at $(date)"
+        run: echo "✅ Sequential sync completed at $(date)"
