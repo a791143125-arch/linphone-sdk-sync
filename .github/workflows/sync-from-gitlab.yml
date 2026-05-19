@@ -1,9 +1,9 @@
-name: Fast Mirror Sync from GitLab
+name: Fast GitLab Mirror Sync
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -17,13 +17,13 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT }}
 
-      - name: Restore mirror cache
+      - name: Restore git mirror cache
         uses: actions/cache@v4
         with:
           path: /tmp/git-mirror-cache
@@ -36,7 +36,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # SPEED OPTIMIZATION
+          # SPEED
           git config --global core.compression 0
           git config --global pack.window 0
           git config --global pack.threads 1
@@ -44,14 +44,19 @@ jobs:
           git config --global http.postBuffer 524288000
 
       - name: Sync main repository
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           set -e
 
-          echo "📥 Syncing main repository..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📥 Sync main repository"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           git remote remove gitlab 2>/dev/null || true
 
-          git remote add gitlab https://gitlab.linphone.org/BC/public/linphone-sdk.git
+          git remote add gitlab \
+            https://gitlab.linphone.org/BC/public/linphone-sdk.git
 
           git fetch --prune gitlab
 
@@ -66,19 +71,109 @@ jobs:
             --no-edit || true
 
           git push origin "$DEFAULT_BRANCH"
+
           git push origin --tags || true
 
-          echo "✅ Main repo synced"
+          echo "✅ Main repository synced"
 
-      - name: Sync submodules in parallel
+      ####################################################################
+      # CREATE REPOS (SERIAL, AVOID GITHUB ABUSE DETECTION)
+      ####################################################################
+
+      - name: Create missing GitHub repos
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -e
+
+          SUBMODULES=(
+              "bcg729"
+              "bcmatroska2"
+              "external/mbedtls"
+              "external/bv16-floatingpoint"
+              "external/speex"
+              "external/libvpx"
+              "external/opus"
+              "external/gsm"
+              "external/srtp"
+              "external/libxml2"
+              "external/zlib"
+              "external/openh264"
+              "external/libjpeg-turbo"
+              "external/xerces-c"
+              "external/soci"
+              "external/sqlite3"
+              "external/codec2"
+              "external/decaf"
+              "external/zxing-cpp"
+              "external/vo-amrwbenc"
+              "external/opencore-amr"
+              "external/openldap"
+              "external/jsoncpp"
+              "external/libyuv"
+              "external/liboqs"
+              "external/dav1d"
+              "external/aom"
+              "external/rnnoise"
+              "external/cpp-httplib"
+          )
+
+          for submodule in "${SUBMODULES[@]}"; do
+
+              repo_name=$(echo "$submodule" | tr '/' '-')
+
+              github_url="https://github.com/${GITHUB_USER}/${repo_name}.git"
+
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "🔍 Check repo: $repo_name"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+              if git ls-remote "$github_url" &>/dev/null; then
+                  echo "✅ Already exists"
+                  continue
+              fi
+
+              echo "🍴 Creating repository..."
+
+              RESPONSE=$(curl --silent --show-error --fail-with-body \
+                -L \
+                -X POST \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                https://api.github.com/user/repos \
+                -d "{
+                  \"name\":\"${repo_name}\",
+                  \"private\":false
+                }")
+
+              echo "$RESPONSE"
+
+              echo "⏳ Wait GitHub initialize..."
+
+              sleep 5
+
+              echo "✅ Repository created"
+
+              # avoid abuse detection
+              sleep 2
+
+          done
+
+      ####################################################################
+      # PARALLEL MIRROR SYNC
+      ####################################################################
+
+      - name: Parallel mirror sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -e
 
           mkdir -p /tmp/git-mirror-cache
 
           process_submodule() {
+
               submodule="$1"
 
               repo_name=$(echo "$submodule" | tr '/' '-')
@@ -91,29 +186,16 @@ jobs:
 
               echo ""
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "🔄 Processing: $submodule"
+              echo "🔄 Sync: $submodule"
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-              # check github repo
-              if ! git ls-remote "$github_url" &>/dev/null; then
-                  echo "🍴 Creating GitHub repo..."
+              ############################################################
+              # INIT OR UPDATE MIRROR CACHE
+              ############################################################
 
-                  curl -s \
-                    -X POST \
-                    -H "Authorization: token ${GITHUB_TOKEN}" \
-                    -H "Accept: application/vnd.github+json" \
-                    https://api.github.com/user/repos \
-                    -d "{
-                      \"name\":\"${repo_name}\",
-                      \"private\":false
-                    }" >/dev/null
-
-                  sleep 8
-              fi
-
-              # init or update mirror
               if [ ! -d "$cache_dir" ]; then
-                  echo "📦 Creating mirror cache..."
+
+                  echo "📦 Create mirror cache"
 
                   git clone \
                     --mirror \
@@ -121,30 +203,43 @@ jobs:
                     "$cache_dir"
 
               else
-                  echo "⚡ Updating existing mirror..."
+
+                  echo "⚡ Update existing mirror"
 
                   cd "$cache_dir"
 
                   git remote update --prune
+
               fi
 
               cd "$cache_dir"
 
+              ############################################################
+              # COMPARE HEAD
+              ############################################################
+
               GITLAB_COMMIT=$(git ls-remote "$gitlab_url" HEAD | awk '{print $1}')
+
               GITHUB_COMMIT=$(git ls-remote "$github_url" HEAD | awk '{print $1}')
+
+              echo "GitLab : ${GITLAB_COMMIT:0:7}"
+              echo "GitHub : ${GITHUB_COMMIT:0:7}"
 
               if [ "$GITLAB_COMMIT" = "$GITHUB_COMMIT" ] && [ ! -z "$GITHUB_COMMIT" ]; then
                   echo "⏭️ Already synced"
-                  echo "GitLab : ${GITLAB_COMMIT:0:7}"
-                  echo "GitHub : ${GITHUB_COMMIT:0:7}"
                   return
               fi
 
-              echo "🚀 Pushing mirror..."
+              ############################################################
+              # MIRROR PUSH
+              ############################################################
+
+              echo "🚀 Mirror push..."
 
               git push --mirror "$github_url"
 
-              echo "✅ Synced: $submodule"
+              echo "✅ Sync complete"
+
           }
 
           export -f process_submodule
@@ -185,6 +280,10 @@ jobs:
 
           printf '%s\n' "${SUBMODULES[@]}" | \
           xargs -I{} -P 6 bash -c 'process_submodule "$@"' _ {}
+
+      ####################################################################
+      # UPDATE .gitmodules
+      ####################################################################
 
       - name: Update .gitmodules
         run: |
@@ -306,10 +405,14 @@ jobs:
 
           git add .gitmodules
 
-          git commit -m "chore: update gitmodules" || true
+          git commit -m "chore: update .gitmodules" || true
 
           git push origin || true
 
-      - name: Summary
+      - name: Done
         run: |
-          echo "✅ Sync completed at $(date)"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ ALL SYNC COMPLETED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          date
