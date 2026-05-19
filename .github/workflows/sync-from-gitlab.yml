@@ -41,7 +41,7 @@ jobs:
           git push origin --tags --quiet 2>/dev/null || true
           echo "✅ Main repo synced!"
 
-      - name: Process submodules sequentially
+      - name: Process submodules sequentially (skip if already synced)
         run: |
           GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           GITHUB_USER="${{ env.GITHUB_USER }}"
@@ -80,6 +80,8 @@ jobs:
           
           total=${#SUBMODULES[@]}
           current=0
+          synced=0
+          skipped=0
           
           for submodule in "${SUBMODULES[@]}"; do
               current=$((current + 1))
@@ -95,14 +97,15 @@ jobs:
                   "https://api.github.com/repos/$GITHUB_USER/$repo_name" | grep -o '"id"' || true)
               
               if [ -z "$REPO_CHECK" ]; then
-                  echo "  🍴 Forking..."
+                  echo "  🍴 Forking to GitHub..."
                   curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
                       -H "Accept: application/vnd.github.v3+json" \
                       "https://api.github.com/user/imports" \
                       -d "{\"vcs\":\"git\",\"repository_name\":\"$repo_name\",\"private\":false,\"repository_url\":\"$gitlab_url\"}" > /dev/null
                   sleep 3
                   
-                  # Wait for fork
+                  # Wait for fork to be ready
+                  echo "  ⏳ Waiting for fork to complete..."
                   for i in {1..120}; do
                       READY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
                           "https://api.github.com/repos/$GITHUB_USER/$repo_name" | grep -o '"id"' || true)
@@ -113,23 +116,65 @@ jobs:
                       sleep 5
                   done
               else
-                  echo "  ✓ Already exists"
+                  echo "  ✓ GitHub repo exists"
               fi
               
-              # Sync
-              echo "  📥 Cloning from GitLab..."
+              # Get latest commit from GitLab
+              echo "  📊 Checking for updates..."
+              GITLAB_COMMIT=$(git ls-remote "$gitlab_url" HEAD | awk '{print $1}' 2>/dev/null || echo "")
+              
+              if [ -z "$GITLAB_COMMIT" ]; then
+                  echo "  ⚠️  Could not fetch GitLab commit, skipping..."
+                  continue
+              fi
+              
+              # Get latest commit from GitHub
+              GITHUB_COMMIT=$(git ls-remote "$github_url" HEAD | awk '{print $1}' 2>/dev/null || echo "")
+              
+              # Compare commits
+              if [ "$GITLAB_COMMIT" = "$GITHUB_COMMIT" ] && [ ! -z "$GITHUB_COMMIT" ]; then
+                  echo "  ⏭️  Skip (already synced)"
+                  echo "     GitLab:  ${GITLAB_COMMIT:0:7}"
+                  echo "     GitHub:  ${GITHUB_COMMIT:0:7}"
+                  skipped=$((skipped + 1))
+                  continue
+              fi
+              
+              # Need to sync
+              echo "  🔄 Syncing..."
+              echo "     GitLab:  ${GITLAB_COMMIT:0:7}"
+              echo "     GitHub:  ${GITHUB_COMMIT:0:7}"
+              
               git_dir="/tmp/sub_$repo_name"
               rm -rf "$git_dir" 2>/dev/null || true
-              git clone --bare "$gitlab_url" "$git_dir" 2>/dev/null || continue
               
-              echo "  📤 Pushing to GitHub..."
-              cd "$git_dir"
-              git push --mirror "$github_url" 2>/dev/null || true
-              cd - > /dev/null
+              # Clone from GitLab
+              if ! git clone --bare "$gitlab_url" "$git_dir" 2>/dev/null; then
+                  echo "  ⚠️  Could not clone from GitLab, skipping..."
+                  continue
+              fi
+              
+              # Push to GitHub
+              if ! (cd "$git_dir" && git push --mirror "$github_url" 2>/dev/null); then
+                  echo "  ⚠️  Could not push to GitHub"
+                  rm -rf "$git_dir"
+                  continue
+              fi
+              
               rm -rf "$git_dir"
               
-              echo "  ✅ Done"
+              echo "  ✅ Synced"
+              synced=$((synced + 1))
           done
+          
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║          📊 Sync Statistics            ║"
+          echo "╚════════════════════════════════════════╝"
+          echo "Total submodules:  $total"
+          echo "Synced:            $synced"
+          echo "Skipped (updated): $skipped"
+          echo "Failed:            $((total - synced - skipped))"
 
       - name: Update .gitmodules
         run: |
@@ -234,4 +279,4 @@ jobs:
           git push origin --quiet 2>/dev/null || true
 
       - name: Summary
-        run: echo "✅ Sequential sync completed at $(date)"
+        run: echo "✅ Sync workflow completed at $(date)"
