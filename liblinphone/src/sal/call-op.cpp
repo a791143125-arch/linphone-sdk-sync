@@ -1344,19 +1344,23 @@ int SalCallOp::accept() {
 	lInfo() << "Accepting server transaction [" << transaction << "] on op [" << this << "]";
 
 	// Send a 200 OK
-	auto response =
-	    createResponseFromRequest(belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(transaction)), 200);
+	auto *request = belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(transaction));
+	auto response = createResponseFromRequest(request, 200);
 	if (!response) {
 		lError() << "Failed to build answer for call";
 		return -1;
 	}
+
+	// Account for From header changes during reINVITEs. This may happen if a call is added to a conference after it has
+	// been established. In fact, the conference server may change the From header to match the conference address while
+	// keeping the same tag
+	updateRemoteFromRequest();
 
 	belle_sip_message_t *message = BELLE_SIP_MESSAGE(response);
 	belle_sip_message_add_header(message, BELLE_SIP_HEADER(createAllow(mRoot->mEnableSipUpdate)));
 
 	// RFC4028
 	if (mRoot->mSessionExpiresEnabled) {
-		auto *request = belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(transaction));
 		auto refresher = BELLE_SIP_HEADER_SESSION_EXPIRES_UNSPECIFIED;
 		int delta = mRoot->mSessionExpiresValue;
 		auto *supported =
@@ -1542,18 +1546,24 @@ int SalCallOp::update(const string &subject, bool noUserConsent, bool withSDP, i
 	belle_sip_dialog_enable_pending_trans_checking(mDialog, mRoot->mPendingTransactionChecking);
 
 	// Check for dialog state
-	belle_sip_request_t *update = nullptr;
+	std::string method;
 	if (state == BELLE_SIP_DIALOG_CONFIRMED) {
-		if (noUserConsent) update = belle_sip_dialog_create_request(mDialog, "UPDATE");
-		else update = belle_sip_dialog_create_request(mDialog, "INVITE");
+		if (noUserConsent) method = "UPDATE";
+		else method = "INVITE";
 	} else if (state == BELLE_SIP_DIALOG_EARLY) {
-		update = belle_sip_dialog_create_request(mDialog, "UPDATE");
-	} else {
+		method = "UPDATE";
+	}
+	if (method.empty()) {
 		lError() << "Cannot update op [" << this << "] with dialog [" << mDialog << "] in state ["
 		         << belle_sip_dialog_state_to_string(state) << "]";
 		return -1;
 	}
+	belle_sip_request_t *update = belle_sip_dialog_create_request(mDialog, method.c_str());
 	if (update) {
+		// The From header may have changed since the last INVITE message. For example if an existing call is added to a
+		// conference after it has been established, the From header needs to be updated with the conference address
+		// while keeping the same from tag
+		updateFromHeader(update, method);
 		if (!subject.empty()) {
 			belle_sip_message_add_header(BELLE_SIP_MESSAGE(update),
 			                             belle_sip_header_create("Subject", subject.c_str()));
@@ -1562,6 +1572,7 @@ int SalCallOp::update(const string &subject, bool noUserConsent, bool withSDP, i
 		if (mRoot->mSupportedHeader) {
 			belle_sip_message_add_header(BELLE_SIP_MESSAGE(update), mRoot->mSupportedHeader);
 		}
+
 		fillSessionExpiresHeaders(update, BELLE_SIP_HEADER_SESSION_EXPIRES_UAC, delta);
 		if (withSDP) fillInvite(update);
 		auto ret = sendRequestWithContact(update, true);
@@ -1918,19 +1929,6 @@ int SalCallOp::notifyReferState(SalCallOp *newCallOp) {
 void SalCallOp::setReplaces(const string &callId, const string &fromTag, const string &toTag) {
 	auto replacesHeader = belle_sip_header_replaces_create(callId.c_str(), fromTag.c_str(), toTag.c_str());
 	SalOp::setReplaces(replacesHeader);
-}
-const char *SalCallOp::getLocalTag() {
-	if (mDialog) return belle_sip_dialog_get_local_tag(mDialog);
-	else if (mState == SalOp::State::Early && mPendingClientTransaction != nullptr) {
-		// look for from tag of invite transaction
-		return belle_sip_header_from_get_tag(belle_sip_message_get_header_by_type(
-		    belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(mPendingClientTransaction)),
-		    belle_sip_header_from_t));
-	} else return "";
-}
-const char *SalCallOp::getRemoteTag() {
-	if (mDialog && belle_sip_dialog_get_remote_tag(mDialog) != NULL) return belle_sip_dialog_get_remote_tag(mDialog);
-	else return "";
 }
 
 void SalCallOp::setSdpHandling(SalOpSDPHandling handling) {

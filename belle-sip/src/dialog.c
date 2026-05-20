@@ -1146,8 +1146,18 @@ const belle_sip_header_call_id_t *belle_sip_dialog_get_call_id(const belle_sip_d
 	return dialog->call_id;
 }
 
+void belle_sip_dialog_set_local_party(belle_sip_dialog_t *dialog, belle_sip_header_address_t *party) {
+	if (dialog->local_party) belle_sip_object_unref(dialog->local_party);
+	dialog->local_party = party;
+}
+
 const belle_sip_header_address_t *belle_sip_dialog_get_local_party(const belle_sip_dialog_t *dialog) {
 	return dialog->local_party;
+}
+
+void belle_sip_dialog_set_remote_party(belle_sip_dialog_t *dialog, belle_sip_header_address_t *party) {
+	if (dialog->remote_party) belle_sip_object_unref(dialog->remote_party);
+	dialog->remote_party = party;
 }
 
 const belle_sip_header_address_t *belle_sip_dialog_get_remote_party(const belle_sip_dialog_t *dialog) {

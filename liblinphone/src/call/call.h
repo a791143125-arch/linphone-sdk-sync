@@ -197,8 +197,6 @@ public:
 	std::shared_ptr<Call> getTransferTarget() const;
 	std::shared_ptr<CallStats> getVideoStats() const;
 	bool isInConference() const;
-	std::string getConferenceId() const;
-	void setConferenceId(const std::string &conferenceId);
 	bool mediaInProgress() const;
 	void checkAuthenticationTokenSelected(const std::string &selectedValue);
 	void setAuthenticationTokenVerified(bool value);

@@ -1023,6 +1023,12 @@ LinphoneChatRoom *create_chat_room_client_side_with_expected_number_of_participa
                                                                                     int expectedParticipantSize,
                                                                                     bool_t encrypted,
                                                                                     LinphoneChatRoomEphemeralMode mode);
+LinphoneChatRoom *check_has_chat_room_client_side(bctbx_list_t *lcs,
+                                                  LinphoneCoreManager *lcm,
+                                                  const LinphoneAddress *confAddr,
+                                                  const char *subject,
+                                                  int participantNumber,
+                                                  bool_t isAdmin);
 LinphoneChatRoom *check_creation_chat_room_client_side(bctbx_list_t *lcs,
                                                        LinphoneCoreManager *lcm,
                                                        stats *initialStats,

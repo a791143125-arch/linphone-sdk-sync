@@ -78,13 +78,24 @@ void ClientChatRoom::deletePendingMessage(const std::shared_ptr<ChatMessage> &ch
 	if (it != mPendingCreationMessages.end()) mPendingCreationMessages.erase(it);
 }
 
-void ClientChatRoom::onChatRoomCreated(const std::shared_ptr<Address> &remoteContact) {
+void ClientChatRoom::onChatRoomCreated(const std::shared_ptr<Address> &remoteAddress,
+                                       const std::shared_ptr<Address> &remoteContact) {
 	auto conference = dynamic_pointer_cast<ClientConference>(getConference());
-	conference->onConferenceCreated(remoteContact);
+	auto conferenceAddress = remoteAddress->clone()->toSharedPtr();
+	// Flexisip 2.5 and below doesn't add the conf-id parameter to the From header of all INVITE sessions and the client
+	// was therefore obliged to rely on the contact header. However, the contact header's only purpose is to route a
+	// request to the server. This issues being fixed in flexisip 2.6 has nonetheless to be worked around to be
+	// compatible with older flexisip versions.
+	if (!conferenceAddress->hasUriParam(Conference::sConfIdParameter) &&
+	    remoteContact->hasUriParam(Conference::sConfIdParameter)) {
+		conferenceAddress->setUriParam(Conference::sConfIdParameter,
+		                               remoteContact->getUriParamValue(Conference::sConfIdParameter));
+	}
+	conference->onConferenceCreated(conferenceAddress);
 #if defined(HAVE_ADVANCED_IM) && defined(HAVE_XERCESC)
 	if (remoteContact->hasParam(Conference::sIsFocusParameter) &&
 	    !getCore()->getPrivate()->clientListEventHandler->findHandler(getConferenceId())) {
-		mBgTask.start(getCore(), 32); // It will be stopped when receiving the first notify
+		startBgTask();
 		conference->subscribe(false, false);
 	}
 #endif // defined(HAVE_ADVANCED_IM) && defined(HAVE_XERCESC)
@@ -347,18 +358,17 @@ void ClientChatRoom::onExhumedConference(const ConferenceId &oldConfId, const Co
 }
 
 // Will be called on A when A is sending a message into a chat room with B previously terminated by B
-void ClientChatRoom::onLocallyExhumedConference(const std::shared_ptr<Address> &remoteContact) {
-	auto conference = dynamic_pointer_cast<ClientConference>(getConference());
+void ClientChatRoom::onLocallyExhumedConference(const std::shared_ptr<Address> &remoteAddress) {
 	ConferenceId oldConfId = getConferenceId();
 	ConferenceId newConfId =
-	    ConferenceId(remoteContact, oldConfId.getLocalAddress(), getCore()->createConferenceIdParams());
+	    ConferenceId(remoteAddress, oldConfId.getLocalAddress(), getCore()->createConferenceIdParams());
 
-	lInfo() << *conference << ": old conference ID [" << oldConfId << "] has been locally exhumed into [" << newConfId
-	        << "]";
+	lInfo() << *this << ": old conference ID [" << oldConfId << "] has been locally exhumed into [" << newConfId << "]";
 
 	onExhumedConference(oldConfId, newConfId);
 
 	setState(ConferenceInterface::State::Created);
+	auto conference = static_pointer_cast<ClientConference>(getConference());
 	conference->subscribe(false);
 
 	lInfo() << "Found " << mPendingCreationMessages.size() << " messages waiting for exhume";
@@ -728,6 +738,14 @@ long ClientChatRoom::getEphemeralNotReadLifetime() const {
 bool ClientChatRoom::ephemeralSupportedByAllParticipants() const {
 	// TODO
 	return false;
+}
+
+void ClientChatRoom::startBgTask() {
+	mBgTask.start(getCore(), 32); // It will be stopped when receiving the first notify
+}
+
+void ClientChatRoom::stopBgTask() {
+	mBgTask.stop();
 }
 
 LINPHONE_END_NAMESPACE

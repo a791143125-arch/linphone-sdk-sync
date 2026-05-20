@@ -90,8 +90,6 @@ public:
 	bool dialogRequestPending() const {
 		return (belle_sip_dialog_request_pending(mDialog) != 0);
 	}
-	const char *getLocalTag();
-	const char *getRemoteTag();
 	void setReplaces(const std::string &callId, const std::string &fromTag, const std::string &toTag);
 	void setSdpHandling(SalOpSDPHandling handling);
 

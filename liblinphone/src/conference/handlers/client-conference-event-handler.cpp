@@ -845,7 +845,6 @@ void ClientConferenceEventHandler::subscribeStateChangedCb(LinphoneEvent *lev, L
 			if (mainSession) {
 				mainSession->terminate();
 			}
-			conf->setState(ConferenceInterface::State::Terminated);
 		}
 	}
 }

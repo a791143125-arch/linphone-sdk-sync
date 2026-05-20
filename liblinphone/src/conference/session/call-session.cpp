@@ -352,14 +352,6 @@ bool CallSessionPrivate::isInConference() const {
 	return mParams->getPrivate()->getInConference();
 }
 
-const std::string CallSessionPrivate::getConferenceId() const {
-	return mParams->getPrivate()->getConferenceId();
-}
-
-void CallSessionPrivate::setConferenceId(const std::string id) {
-	mParams->getPrivate()->setConferenceId(id);
-}
-
 // -----------------------------------------------------------------------------
 
 void CallSessionPrivate::abort(const string &errorMsg) {
@@ -681,6 +673,9 @@ void CallSessionPrivate::refreshed() {
 void CallSessionPrivate::updatedByRemote() {
 	L_Q();
 
+	// The client received a reINVTE, hence immediately update the op's remote address so that we can leverage it when
+	// the state changed callback is called
+	op->updateRemoteFromRequest();
 	setState(CallSession::State::UpdatedByRemote, "Call updated by remote");
 	if (deferUpdate || deferUpdateInternal) {
 		if (state == CallSession::State::UpdatedByRemote && !deferUpdateInternal) {

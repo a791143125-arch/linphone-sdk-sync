@@ -74,9 +74,8 @@ public:
 	AbstractChatRoom::EphemeralMode getEphemeralMode() const override;
 	bool ephemeralSupportedByAllParticipants() const override;
 
-	void stopBgTask() {
-		mBgTask.stop();
-	}
+	void startBgTask();
+	void stopBgTask();
 
 	void setDeletionOnTerminationEnabled(bool enable) {
 		mDeletionOnTerminationEnabled = enable;
@@ -94,7 +93,8 @@ public:
 
 	unsigned int getLastNotifyId() const;
 
-	void onChatRoomCreated(const std::shared_ptr<Address> &remoteContact);
+	void onChatRoomCreated(const std::shared_ptr<Address> &remoteAddress,
+	                       const std::shared_ptr<Address> &remoteContact);
 	bool canSendMessages() const override;
 	void sendChatMessage(const std::shared_ptr<ChatMessage> &chatMessage) override;
 	void chatMessageEarlyFailure(const std::shared_ptr<ChatMessage> &chatMessage) override;

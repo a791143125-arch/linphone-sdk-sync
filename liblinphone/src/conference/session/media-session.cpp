@@ -403,9 +403,7 @@ void MediaSessionPrivate::accepted() {
 
 				if (getOp() && getOp()->getContactAddress()) {
 					const auto contactAddress = q->getContactAddress();
-					const auto &confId = getConferenceId();
-					if (!confId.empty() && isInConference() &&
-					    !contactAddress->hasParam(Conference::sIsFocusParameter)) {
+					if (isInConference() && !contactAddress->hasParam(Conference::sIsFocusParameter)) {
 						// If the call was added to a conference after the last INVITE session was started, the reINVITE
 						// to enter conference must be sent only if capability negotiation reINVITE was not sent
 						if (!capabilityNegotiationReInviteSent) {
@@ -4239,8 +4237,7 @@ LinphoneStatus MediaSessionPrivate::startAccept() {
 	// It occurs if the remote participant calls the core hosting the conference and the call is added to the conference
 	// when it is in state IncomingReceived
 	// Do not do anything if the contact address is not yet known
-	const auto &confId = getConferenceId();
-	if (getOp() && getOp()->getContactAddress() && !confId.empty() && isInConference()) {
+	if (getOp() && getOp()->getContactAddress() && isInConference()) {
 		q->updateContactAddressInOp();
 	}
 

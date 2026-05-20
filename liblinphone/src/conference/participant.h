@@ -151,10 +151,10 @@ protected:
 	createSession(const std::shared_ptr<Core> &core, const CallSessionParams *params, bool hasMedia);
 	void setSession(std::shared_ptr<CallSession> callSession);
 	inline std::shared_ptr<CallSession> getSession() const {
-		return session;
+		return mSession;
 	}
 	inline void removeSession() {
-		session.reset();
+		mSession.reset();
 	}
 	void setAddress(const std::shared_ptr<const Address> &addr);
 
@@ -172,7 +172,7 @@ private:
 	std::shared_ptr<Address> mAddress;
 	bool isThisAdmin = false;
 	bool isThisFocus = false;
-	std::shared_ptr<CallSession> session;
+	std::shared_ptr<CallSession> mSession;
 	std::list<std::shared_ptr<ParticipantDevice>> mDevices;
 	time_t creationTime;
 	bool preserveSession = false;

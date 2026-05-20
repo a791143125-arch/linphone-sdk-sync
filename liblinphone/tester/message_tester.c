@@ -3578,7 +3578,6 @@ void aggregated_imdns_in_group_chat_base(const LinphoneTesterLimeAlgo curveId) {
 	                             liblinphone_tester_sip_timeout));
 	BC_ASSERT_TRUE(wait_for_list(coresList, &chloe->stat.number_of_LinphoneAggregatedMessagesReceived, nbMessages,
 	                             liblinphone_tester_sip_timeout));
-
 	BC_ASSERT_TRUE(wait_for_list(coresList, &marie->stat.number_of_LinphoneMessageDeliveredToUser, nbMessages,
 	                             liblinphone_tester_sip_timeout));
 
@@ -3684,7 +3683,6 @@ void aggregated_imdns_in_group_chat_base(const LinphoneTesterLimeAlgo curveId) {
 	BC_ASSERT_TRUE(wait_for_list(coresList, &chloe->stat.number_of_LinphoneAggregatedMessagesReceived,
 	                             initialChloeStats.number_of_LinphoneMessageReceived + nbMessages,
 	                             liblinphone_tester_sip_timeout));
-
 	BC_ASSERT_TRUE(wait_for_list(coresList, &pauline->stat.number_of_LinphoneMessageDeliveredToUser,
 	                             initialPaulineStats.number_of_LinphoneMessageDeliveredToUser + nbMessages,
 	                             liblinphone_tester_sip_timeout));
