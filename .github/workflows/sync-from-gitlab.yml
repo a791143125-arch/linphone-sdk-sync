@@ -55,10 +55,6 @@ jobs:
           git config --global protocol.version 2
           git config --global http.postBuffer 524288000
 
-          # NETWORK
-          git config --global http.lowSpeedLimit 1000
-          git config --global http.lowSpeedTime 15
-
       ####################################################################
       # ENSURE MAIN REPO EXISTS
       ####################################################################
@@ -66,7 +62,6 @@ jobs:
       - name: Ensure main repository exists
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        shell: bash
         run: |
           set -e
 
@@ -103,44 +98,14 @@ jobs:
           echo "✅ Main repository created"
 
       ####################################################################
-      # SYNC MAIN REPOSITORY
+      # SYNC MAIN REPOSITORY (REAL MIRROR)
       ####################################################################
 
       - name: Sync main repository
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
-        shell: bash
         run: |
           set -e
-
-          export GIT_HTTP_LOW_SPEED_LIMIT=1000
-          export GIT_HTTP_LOW_SPEED_TIME=15
-
-          retry_git() {
-
-              local max_attempts=10
-              local attempt=1
-
-              while true; do
-
-                  echo "⚡ Attempt ${attempt}/${max_attempts}"
-
-                  if timeout 15s "$@"; then
-                      return 0
-                  fi
-
-                  if [ $attempt -ge $max_attempts ]; then
-                      echo "❌ Command failed after ${max_attempts} attempts"
-                      return 1
-                  fi
-
-                  echo "⏳ Retry in ${attempt}s..."
-
-                  sleep $attempt
-
-                  attempt=$((attempt + 1))
-              done
-          }
 
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📥 Sync main repository"
@@ -148,26 +113,24 @@ jobs:
 
           rm -rf /tmp/linphone-sdk
 
-          retry_git git clone \
-            --mirror \
+          git clone --mirror \
             https://gitlab.linphone.org/BC/public/linphone-sdk.git \
             /tmp/linphone-sdk
 
           cd /tmp/linphone-sdk
 
-          retry_git git push --mirror \
+          git push --mirror \
             https://${GH_PAT}@github.com/${GITHUB_USER}/linphone-sdk.git
 
           echo "✅ Main repository synced"
 
       ####################################################################
-      # CREATE REPOS
+      # CREATE REPOS (SERIAL)
       ####################################################################
 
       - name: Create missing GitHub repos
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        shell: bash
         run: |
           set -e
 
@@ -221,7 +184,7 @@ jobs:
 
               echo "🍴 Creating repository..."
 
-              curl --silent --show-error --fail-with-body \
+              RESPONSE=$(curl --silent --show-error --fail-with-body \
                 -L \
                 -X POST \
                 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
@@ -230,15 +193,17 @@ jobs:
                 -d "{
                   \"name\":\"${repo_name}\",
                   \"private\":false
-                }"
+                }")
 
-              echo ""
+              echo "$RESPONSE"
+
               echo "⏳ Wait GitHub initialize..."
 
               sleep 5
 
               echo "✅ Repository created"
 
+              # avoid abuse detection
               sleep 2
 
           done
@@ -250,40 +215,10 @@ jobs:
       - name: Parallel mirror sync
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        shell: bash
         run: |
           set -e
 
           mkdir -p /tmp/git-mirror-cache
-
-          export GIT_HTTP_LOW_SPEED_LIMIT=1000
-          export GIT_HTTP_LOW_SPEED_TIME=15
-
-          retry_git() {
-
-              local max_attempts=10
-              local attempt=1
-
-              while true; do
-
-                  echo "⚡ Attempt ${attempt}/${max_attempts}"
-
-                  if timeout 15s "$@"; then
-                      return 0
-                  fi
-
-                  if [ $attempt -ge $max_attempts ]; then
-                      echo "❌ Command failed after ${max_attempts} attempts"
-                      return 1
-                  fi
-
-                  echo "⏳ Retry in ${attempt}s..."
-
-                  sleep $attempt
-
-                  attempt=$((attempt + 1))
-              done
-          }
 
           process_submodule() {
 
@@ -302,11 +237,15 @@ jobs:
               echo "🔄 Sync: $submodule"
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+              ############################################################
+              # INIT OR UPDATE MIRROR CACHE
+              ############################################################
+
               if [ ! -d "$cache_dir" ]; then
 
                   echo "📦 Create mirror cache"
 
-                  retry_git git clone \
+                  git clone \
                     --mirror \
                     "$gitlab_url" \
                     "$cache_dir"
@@ -317,23 +256,19 @@ jobs:
 
                   cd "$cache_dir"
 
-                  retry_git git remote update --prune
+                  git remote update --prune
 
               fi
 
               cd "$cache_dir"
 
-              GITLAB_COMMIT=$(
-                retry_git git ls-remote "$gitlab_url" HEAD \
-                | tail -n1 \
-                | awk '{print $1}'
-              )
+              ############################################################
+              # COMPARE HEAD
+              ############################################################
 
-              GITHUB_COMMIT=$(
-                retry_git git ls-remote "$github_url" HEAD \
-                | tail -n1 \
-                | awk '{print $1}'
-              )
+              GITLAB_COMMIT=$(git ls-remote "$gitlab_url" HEAD | awk '{print $1}')
+
+              GITHUB_COMMIT=$(git ls-remote "$github_url" HEAD | awk '{print $1}')
 
               echo "GitLab : ${GITLAB_COMMIT:0:7}"
               echo "GitHub : ${GITHUB_COMMIT:0:7}"
@@ -343,16 +278,19 @@ jobs:
                   return
               fi
 
+              ############################################################
+              # MIRROR PUSH
+              ############################################################
+
               echo "🚀 Mirror push..."
 
-              retry_git git push --mirror "$github_url"
+              git push --mirror "$github_url"
 
               echo "✅ Sync complete"
+
           }
 
           export -f process_submodule
-          export -f retry_git
-
           export GITHUB_USER
           export GITHUB_TOKEN
 
@@ -389,14 +327,13 @@ jobs:
           )
 
           printf '%s\n' "${SUBMODULES[@]}" | \
-          xargs -I{} -P 4 bash -c 'process_submodule "$@"' _ {}
+          xargs -I{} -P 6 bash -c 'process_submodule "$@"' _ {}
 
       ####################################################################
       # UPDATE .gitmodules
       ####################################################################
 
       - name: Update .gitmodules
-        shell: bash
         run: |
           set -e
 
