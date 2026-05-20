@@ -58,6 +58,8 @@ public:
 	void clearHandlers();
 	std::shared_ptr<ClientConferenceEventHandler> findHandler(const ConferenceId &conferenceId) const;
 
+	static void subscribeStateChangedCb(LinphoneEvent *lev, LinphoneSubscriptionState state);
+
 private:
 	const std::shared_ptr<EventSubscribe> findEvent(const std::shared_ptr<Address> &address) const;
 	bool isHandlerInSameDomainAsCore(const ConferenceId &conferenceId) const;
@@ -78,6 +80,8 @@ private:
 	void onEnteringBackground() override;
 	void onEnteringForeground() override;
 	virtual void onNotifyWaitExpired() override;
+
+	void detachFromConferences(const std::shared_ptr<Address> &from);
 };
 
 LINPHONE_END_NAMESPACE
