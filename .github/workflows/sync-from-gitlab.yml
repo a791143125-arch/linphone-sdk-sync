@@ -146,17 +146,50 @@ jobs:
           echo "📥 Sync main repository"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+          GITLAB_URL="https://gitlab.linphone.org/BC/public/linphone-sdk.git"
+
+          GITHUB_URL="https://${GH_PAT}@github.com/${GITHUB_USER}/linphone-sdk.git"
+
+          ############################################################
+          # COMPARE HEAD
+          ############################################################
+
+          GITLAB_COMMIT=$(
+            retry_git git ls-remote "$GITLAB_URL" HEAD \
+            | tail -n1 \
+            | awk '{print $1}'
+          )
+
+          GITHUB_COMMIT=$(
+            retry_git git ls-remote "$GITHUB_URL" HEAD \
+            | tail -n1 \
+            | awk '{print $1}'
+          )
+
+          echo "GitLab : ${GITLAB_COMMIT:0:7}"
+          echo "GitHub : ${GITHUB_COMMIT:0:7}"
+
+          if [ "$GITLAB_COMMIT" = "$GITHUB_COMMIT" ] && [ ! -z "$GITHUB_COMMIT" ]; then
+              echo "⏭️ Main repository already synced"
+              exit 0
+          fi
+
+          ############################################################
+          # MIRROR SYNC
+          ############################################################
+
           rm -rf /tmp/linphone-sdk
 
           retry_git git clone \
             --mirror \
-            https://gitlab.linphone.org/BC/public/linphone-sdk.git \
+            "$GITLAB_URL" \
             /tmp/linphone-sdk
 
           cd /tmp/linphone-sdk
 
-          retry_git git push --mirror \
-            https://${GH_PAT}@github.com/${GITHUB_USER}/linphone-sdk.git
+          echo "🚀 Mirror push..."
+
+          retry_git git push --mirror "$GITHUB_URL"
 
           echo "✅ Main repository synced"
 
