@@ -114,6 +114,8 @@ public:
 
 	void setBroken();
 	void setContactOp(const std::optional<std::shared_ptr<Address>> destination);
+	void setContactAddressForConference(Address &contactAddress,
+	                                    const std::optional<std::shared_ptr<Address>> destination) const;
 
 	virtual void reinviteToRecoverFromConnectionLoss();
 	virtual void repairByNewInvite(bool withReplaces);

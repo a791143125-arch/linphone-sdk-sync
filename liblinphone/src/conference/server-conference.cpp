@@ -564,16 +564,10 @@ std::pair<bool, std::shared_ptr<Address>> ServerConference::configure(SalCallOp 
 
 	if (isAdmin && !createdConference) {
 		std::shared_ptr<Address> to = Address::create(op->getTo());
-		MediaSessionParams *msp = new MediaSessionParams();
-		msp->initDefault(getCore(), LinphoneCallIncoming);
-		msp->enableAudio(mConfParams->audioEnabled());
-		msp->enableVideo(mConfParams->videoEnabled());
+		MediaSessionParams *msp = getDefaultMediaParams();
 		msp->getPrivate()->disableRinging(true);
 		msp->getPrivate()->enableToneIndications(false);
 		msp->getPrivate()->setConferenceCreation(true);
-		msp->getPrivate()->setInConference(true);
-		msp->getPrivate()->setStartTime(mConfParams->getStartTime());
-		msp->getPrivate()->setEndTime(mConfParams->getEndTime());
 		shared_ptr<CallSession> session = getMe()->createSession(*this, msp, true);
 		session->addListener(getSharedFromThis());
 		session->configure(LinphoneCallIncoming, nullptr, op, mOrganizer, to);
@@ -639,6 +633,36 @@ bool ServerConference::isIn() const {
 
 std::shared_ptr<Call> ServerConference::getCall() const {
 	return nullptr;
+}
+
+MediaSessionParams *ServerConference::getDefaultMediaParams() const {
+	MediaSessionParams *msp = new MediaSessionParams();
+	msp->initDefault(getCore(), LinphoneCallIncoming);
+	msp->enableAudio(mConfParams->audioEnabled());
+	msp->enableVideo(mConfParams->videoEnabled());
+	msp->getPrivate()->disableRinging(true);
+	msp->getPrivate()->enableToneIndications(false);
+	msp->getPrivate()->setConferenceCreation(true);
+	msp->getPrivate()->setInConference(true);
+	msp->getPrivate()->setStartTime(mConfParams->getStartTime());
+	msp->getPrivate()->setEndTime(mConfParams->getEndTime());
+	msp->getPrivate()->disableRinging(!supportsMedia());
+	msp->getPrivate()->enableToneIndications(supportsMedia());
+	if (!mConfParams->isHidden()) {
+		if (mConfParams->chatEnabled()) {
+			msp->addCustomContactParameter(Conference::sTextParameter, std::string());
+		}
+		msp->addCustomContactParameter(Conference::sIsFocusParameter, std::string());
+		const auto &conferenceAddress = getConferenceAddress();
+		if (conferenceAddress) {
+			const string &confId = conferenceAddress->getUriParamValue(Conference::sConfIdParameter);
+			if (!confId.empty()) {
+				msp->addCustomContactUriParameter(Conference::sConfIdParameter, confId);
+				msp->getPrivate()->setConferenceId(confId);
+			}
+		}
+	}
+	return msp;
 }
 
 /*
@@ -748,7 +772,9 @@ void ServerConference::confirmJoining(BCTBX_UNUSED(SalCallOp *op)) {
 	auto rejectSession = false;
 	SalReason reason = SalReasonNone;
 	if (serverGroupChatRoom && (!deviceSession || (deviceSession->getPrivate()->getOp() != op))) {
-		newDeviceSession = participant->createSession(*getSharedFromThis(), nullptr, true);
+		MediaSessionParams *msp = getDefaultMediaParams();
+		newDeviceSession = participant->createSession(*this, msp, true);
+		delete msp;
 		newDeviceSession->addListener(getSharedFromThis());
 		newDeviceSession->configure(LinphoneCallIncoming, nullptr, op, participant->getAddress(),
 		                            Address::create(op->getTo()));
@@ -1434,6 +1460,9 @@ int ServerConference::inviteAddresses(const std::list<std::shared_ptr<Address>> 
 			const std::shared_ptr<Address> &conferenceAddress = getConferenceAddress();
 			const string &confId = conferenceAddress->getUriParamValue(Conference::sConfIdParameter);
 			linphone_call_params_set_conference_id(new_params, confId.c_str());
+			// Set the from header so that the client will be able to use it to know the conference the session is for
+			// without looking at the contact address
+			linphone_call_params_set_from_header(new_params, conferenceAddress->toString().c_str());
 
 			std::shared_ptr<CallSession> session = nullptr;
 
@@ -3590,7 +3619,7 @@ void ServerConference::onCallSessionStateChanged(const std::shared_ptr<CallSessi
 
 void ServerConference::onCallSessionEarlyFailed(const std::shared_ptr<CallSession> &session, LinphoneErrorInfo *ei) {
 	lInfo() << *this << ": Call (local address " << *session->getLocalAddress() << " remote address "
-	        << *session->getRemoteAddress() << " cannot be established because of error "
+	        << *session->getRemoteAddress() << ") cannot be established because of error "
 	        << linphone_reason_to_string(linphone_error_info_get_reason(ei));
 	if (mState == ConferenceInterface::State::Instantiated) {
 		setState(ConferenceInterface::State::CreationFailed);

@@ -296,6 +296,7 @@ public:
 	                                             const std::list<std::shared_ptr<Address>> &participants,
 	                                             bool logIfNotFound = true) const;
 	std::shared_ptr<Conference> searchConference(const std::shared_ptr<const Address> &conferenceAddress) const;
+	std::shared_ptr<Conference> searchConference(const Address &conferenceAddress) const;
 	std::shared_ptr<Conference> searchConference(const std::string &identifier) const;
 
 	void enableConferenceServer(bool enable);
