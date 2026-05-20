@@ -209,6 +209,53 @@ void SalOp::setDiversionAddress(const SalAddress *diversion) {
 	mDiversionAddress = diversion ? sal_address_clone(diversion) : nullptr;
 }
 
+void SalOp::setLocal(const string &value) {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		setTo(value);
+	} else {
+		setFrom(value);
+	}
+}
+
+const std::string SalOp::getLocal() const {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		return getTo();
+	} else {
+		return getFrom();
+	}
+	return std::string();
+}
+
+void SalOp::setLocalUri(const SalAddress *value) {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		setToAddress(value);
+	} else {
+		setFromAddress(value);
+	}
+}
+
+const SalAddress *SalOp::getLocalUri() const {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		return getToAddress();
+	} else {
+		return getFromAddress();
+	}
+	return nullptr;
+}
+
+void SalOp::setRemote(const string &value) {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		setFrom(value);
+	} else {
+		setTo(value);
+	}
+}
+
 const std::string SalOp::getRemote() const {
 	const auto &dir = getDir();
 	if (dir == SalOp::Dir::Incoming) {
@@ -219,6 +266,14 @@ const std::string SalOp::getRemote() const {
 	return std::string();
 }
 
+void SalOp::setRemoteAddress(const SalAddress *value) {
+	const auto &dir = getDir();
+	if (dir == SalOp::Dir::Incoming) {
+		setFromAddress(value);
+	} else {
+		setToAddress(value);
+	}
+}
 const SalAddress *SalOp::getRemoteAddress() const {
 	const auto &dir = getDir();
 	if (dir == SalOp::Dir::Incoming) {
@@ -419,6 +474,38 @@ int SalOp::processRedirect() {
 	return 0;
 }
 
+void SalOp::updateRemoteFromRequest() {
+	belle_sip_server_transaction_t *transaction = nullptr;
+
+	// Check UPDATE transactions first
+	if (mPendingUpdateServerTransaction) {
+		transaction = mPendingUpdateServerTransaction;
+	} else if (mPendingServerTransaction) {
+		transaction = mPendingServerTransaction;
+	}
+
+	if (transaction) {
+		auto *request = belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(transaction));
+		// Account for From header changes during reINVITEs. This may happen if a call is added to a conference after it
+		// has been established. In fact, the conference server may change the From header to match the conference
+		// address while keeping the same tag
+		auto fromHeader = belle_sip_message_get_header_by_type(request, belle_sip_header_from_t);
+		auto fromUri = belle_sip_header_address_get_uri(BELLE_SIP_HEADER_ADDRESS(fromHeader));
+		setRemote(belle_sip_object_to_string(fromUri));
+		if (mDialog) {
+			belle_sip_dialog_set_remote_party(mDialog, BELLE_SIP_HEADER_ADDRESS(fromHeader));
+		}
+	}
+}
+
+void SalOp::updateFromHeader(belle_sip_request_t *request, const std::string &method) {
+	belle_sip_header_from_t *from = createFromHeader(method);
+	belle_sip_message_set_header(BELLE_SIP_MESSAGE(request), BELLE_SIP_HEADER(from));
+	if (mDialog) {
+		belle_sip_dialog_set_local_party(mDialog, BELLE_SIP_HEADER_ADDRESS(from));
+	}
+}
+
 void SalOp::processAuthentication() {
 	auto initialRequest = belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(mPendingAuthTransaction));
 	auto fromHeader = belle_sip_message_get_header_by_type(initialRequest, belle_sip_header_from_t);
@@ -552,6 +639,41 @@ void SalOp::addInitialRouteSet(belle_sip_request_t *request, const list<SalAddre
 	}
 }
 
+const char *SalOp::getLocalTag() const {
+	if (mDialog) return belle_sip_dialog_get_local_tag(mDialog);
+	else if (mState == SalOp::State::Early && mPendingClientTransaction != nullptr) {
+		// look for from tag of invite transaction
+		return belle_sip_header_from_get_tag(belle_sip_message_get_header_by_type(
+		    belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(mPendingClientTransaction)),
+		    belle_sip_header_from_t));
+	} else return "";
+}
+
+const char *SalOp::getRemoteTag() const {
+	if (mDialog && belle_sip_dialog_get_remote_tag(mDialog) != NULL) return belle_sip_dialog_get_remote_tag(mDialog);
+	else return "";
+}
+
+bool SalOp::useAnonymousFromInRequest(const std::string &method) const {
+	return !((method == "REGISTER") || (mPrivacy == SalPrivacyNone) || (mPrivacy == SalPrivacyDefault));
+}
+
+belle_sip_header_from_t *SalOp::createFromHeader(const std::string &method) const {
+	// Do not change the from tag if already set
+	std::string tag(getLocalTag());
+	if (tag.empty()) {
+		char token[10];
+		tag = belle_sip_random_token(token, sizeof(token));
+	}
+	belle_sip_header_from_t *fromHeader = nullptr;
+	if (useAnonymousFromInRequest(method)) {
+		fromHeader = belle_sip_header_from_create2("Anonymous <sip:anonymous@anonymous.invalid>", tag.c_str());
+	} else {
+		fromHeader = belle_sip_header_from_create(BELLE_SIP_HEADER_ADDRESS(getLocalUri()), tag.c_str());
+	}
+	return fromHeader;
+}
+
 belle_sip_request_t *SalOp::buildRequest(const string &method) {
 	if (!mRoot) {
 		lError() << "Sal has already been destroyed, cannot build request";
@@ -571,17 +693,7 @@ belle_sip_request_t *SalOp::buildRequest(const string &method) {
 		return nullptr;
 	}
 
-	char token[10];
-	belle_sip_header_from_t *fromHeader = nullptr;
-	auto useAnonymousFrom =
-	    !((method == "REGISTER") || (mPrivacy == SalPrivacyNone) || (mPrivacy == SalPrivacyDefault));
-	if (useAnonymousFrom) {
-		fromHeader = belle_sip_header_from_create2("Anonymous <sip:anonymous@anonymous.invalid>",
-		                                           belle_sip_random_token(token, sizeof(token)));
-	} else {
-		fromHeader = belle_sip_header_from_create(BELLE_SIP_HEADER_ADDRESS(getFromAddress()),
-		                                          belle_sip_random_token(token, sizeof(token)));
-	}
+	belle_sip_header_from_t *fromHeader = createFromHeader(method);
 
 	belle_sip_uri_t *requestUri = nullptr;
 	if (mRequestUri.empty()) {
@@ -610,7 +722,7 @@ belle_sip_request_t *SalOp::buildRequest(const string &method) {
 	if (!routeAddresses.empty() && (method != "REGISTER") && !mRoot->mNoInitialRoute)
 		addInitialRouteSet(request, routeAddresses);
 
-	if (useAnonymousFrom) {
+	if (useAnonymousFromInRequest(method)) {
 		auto privacyHeader = belle_sip_header_privacy_new();
 		if (mPrivacy & SalPrivacyCritical)
 			belle_sip_header_privacy_add_privacy(privacyHeader, sal_privacy_to_string(SalPrivacyCritical));

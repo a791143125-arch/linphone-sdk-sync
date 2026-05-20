@@ -2005,6 +2005,12 @@ bool ServerConference::addParticipant(const std::shared_ptr<Call> call) {
 			mMixerSession->setSecurityLevel(mConfParams->getSecurityLevel());
 		}
 
+		const std::shared_ptr<Address> &conferenceAddress = getConferenceAddress();
+		auto op = call->getOp();
+		if (op && conferenceAddress) {
+			op->setLocalUri(conferenceAddress->getImpl());
+		}
+
 		// Add participant to the conference participant list
 		switch (state) {
 			case CallSession::State::OutgoingInit:
@@ -2064,7 +2070,6 @@ bool ServerConference::addParticipant(const std::shared_ptr<Call> call) {
 					}
 
 					auto db = getCore()->getDatabase();
-					const std::shared_ptr<Address> &conferenceAddress = getConferenceAddress();
 					if (success && conferenceAddress && db) {
 						auto conferenceInfo = db.value().get().getConferenceInfoFromURI(conferenceAddress);
 						if (conferenceInfo) {
@@ -2141,7 +2146,6 @@ bool ServerConference::addParticipant(const std::shared_ptr<Call> call) {
 		}
 		setState(ConferenceInterface::State::Created);
 
-		auto op = session->getPrivate()->getOp();
 		auto resourceList = op ? op->getContentInRemote(ContentType::ResourceLists) : nullopt;
 		bool isEmpty = resourceList ? resourceList.value().get().isEmpty() : true;
 

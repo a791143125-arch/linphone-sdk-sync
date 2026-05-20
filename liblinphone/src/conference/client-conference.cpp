@@ -157,7 +157,8 @@ void ClientConference::init(SalCallOp *op, BCTBX_UNUSED(ConferenceListener *conf
 	const auto &core = getCore();
 #endif // defined(HAVE_ADVANCED_IM) || defined(HAVE_DB_STORAGE)
 	std::shared_ptr<Address> organizerAddress = nullptr;
-	auto conferenceAddress = mFocus ? mFocus->getAddress() : nullptr;
+	std::shared_ptr<Address> conferenceAddress = Address::create();
+	conferenceAddress->setImpl(op->getRemoteAddress());
 	std::shared_ptr<ConferenceInfo> conferenceInfo = nullptr;
 #ifdef HAVE_DB_STORAGE
 	if (conferenceAddress && supportsMedia()) {

@@ -576,15 +576,13 @@ void Call::createClientConference(const shared_ptr<CallSession> &session) {
 	// If the call is for a conference stored in the core, then add call to conference once ICE negotiations are
 	// terminated
 	const auto op = session->getPrivate()->getOp();
-	std::shared_ptr<Address> remoteContactAddress = Address::create();
-	remoteContactAddress->setImpl(op->getRemoteContactAddress());
-	ConferenceId conferenceId =
-	    ConferenceId(remoteContactAddress, getLocalAddress(), getCore()->createConferenceIdParams());
+	std::shared_ptr<Address> remoteAddress = Address::create();
+	remoteAddress->setImpl(op->getRemoteAddress());
+	ConferenceId conferenceId = ConferenceId(remoteAddress, getLocalAddress(), getCore()->createConferenceIdParams());
 
 	const auto &conference = getCore()->findConference(conferenceId, false);
 
 	std::shared_ptr<ClientConference> clientConference = nullptr;
-
 	if (conference) {
 		const auto &conferenceAddress = conference->getConferenceAddress();
 		const auto conferenceAddressStr = (conferenceAddress ? conferenceAddress->toString() : std::string("sip:"));
@@ -606,6 +604,9 @@ void Call::createClientConference(const shared_ptr<CallSession> &session) {
 			confParams->enableAudio(md->nbActiveStreamsOfType(SalAudio) > 0);
 			confParams->enableVideo(md->nbActiveStreamsOfType(SalVideo) > 0);
 		}
+
+		std::shared_ptr<Address> remoteContactAddress = Address::create();
+		remoteContactAddress->setImpl(op->getRemoteContactAddress());
 		confParams->enableChat(remoteContactAddress && remoteContactAddress->hasParam(Conference::sTextParameter));
 
 		if (confParams->audioEnabled() || confParams->videoEnabled() || confParams->chatEnabled()) {

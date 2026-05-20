@@ -91,8 +91,12 @@ public:
 		return mToAddress;
 	}
 
+	void updateRemoteFromRequest();
+	void setRemote(const std::string &value);
 	const std::string getRemote() const;
+	void setRemoteAddress(const SalAddress *value);
 	const SalAddress *getRemoteAddress() const;
+	const char *getRemoteTag() const;
 
 	const SalAddress *getRequestAddress() {
 		return mRequestAddress.borrow();
@@ -201,6 +205,12 @@ public:
 	const char *getLocalAddress(int *port) {
 		return mRefresher ? belle_sip_refresher_get_local_address(mRefresher, port) : nullptr;
 	}
+
+	void setLocal(const std::string &value);
+	const std::string getLocal() const;
+	void setLocalUri(const SalAddress *value);
+	const SalAddress *getLocalUri() const;
+	const char *getLocalTag() const;
 
 	const SalErrorInfo *getErrorInfo() const {
 		return &mErrorInfo;
@@ -317,6 +327,10 @@ protected:
 	belle_sip_response_t *createResponseFromRequest(belle_sip_request_t *request, int code) {
 		return mRoot->createResponseFromRequest(request, code);
 	}
+
+	bool useAnonymousFromInRequest(const std::string &method) const;
+	void updateFromHeader(belle_sip_request_t *request, const std::string &method);
+	belle_sip_header_from_t *createFromHeader(const std::string &method) const;
 	belle_sip_header_contact_t *createContact(bool forceSipInstance = false);
 	belle_sip_header_t *createWarningHeader(const SalErrorInfo *ei, const SalAddress *serverAddr);
 

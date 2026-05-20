@@ -91,6 +91,7 @@ public:
 	void setUserData(void *userData);
 
 	const std::shared_ptr<Address> &getLocalAddress() const;
+
 	const std::string &getStartTimeString() const;
 
 	LinphoneQualityReporting *getQualityReporting();
