@@ -17,11 +17,19 @@ jobs:
       contents: write
 
     steps:
+      ####################################################################
+      # CHECKOUT
+      ####################################################################
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
           token: ${{ secrets.GH_PAT }}
+
+      ####################################################################
+      # CACHE
+      ####################################################################
 
       - name: Restore git mirror cache
         uses: actions/cache@v4
@@ -30,6 +38,10 @@ jobs:
           key: git-mirror-cache-${{ runner.os }}
           restore-keys: |
             git-mirror-cache-
+
+      ####################################################################
+      # GIT CONFIG
+      ####################################################################
 
       - name: Configure git
         run: |
@@ -43,6 +55,52 @@ jobs:
           git config --global protocol.version 2
           git config --global http.postBuffer 524288000
 
+      ####################################################################
+      # ENSURE MAIN REPO EXISTS
+      ####################################################################
+
+      - name: Ensure main repository exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -e
+
+          REPO_NAME="linphone-sdk"
+
+          GITHUB_URL="https://github.com/${GITHUB_USER}/${REPO_NAME}.git"
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 Check main repository"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if git ls-remote "$GITHUB_URL" &>/dev/null; then
+              echo "✅ Main repository already exists"
+              exit 0
+          fi
+
+          echo "🍴 Creating main repository..."
+
+          curl --silent --show-error --fail-with-body \
+            -L \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user/repos \
+            -d "{
+              \"name\":\"${REPO_NAME}\",
+              \"private\":false
+            }"
+
+          echo ""
+          echo "⏳ Wait GitHub initialize..."
+          sleep 5
+
+          echo "✅ Main repository created"
+
+      ####################################################################
+      # SYNC MAIN REPOSITORY (REAL MIRROR)
+      ####################################################################
+
       - name: Sync main repository
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
@@ -53,31 +111,21 @@ jobs:
           echo "📥 Sync main repository"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          git remote remove gitlab 2>/dev/null || true
+          rm -rf /tmp/linphone-sdk
 
-          git remote add gitlab \
-            https://gitlab.linphone.org/BC/public/linphone-sdk.git
+          git clone --mirror \
+            https://gitlab.linphone.org/BC/public/linphone-sdk.git \
+            /tmp/linphone-sdk
 
-          git fetch --prune gitlab
+          cd /tmp/linphone-sdk
 
-          DEFAULT_BRANCH=$(git remote show gitlab | sed -n '/HEAD branch/s/.*: //p')
-
-          echo "Default branch: $DEFAULT_BRANCH"
-
-          git checkout "$DEFAULT_BRANCH" || true
-
-          git merge "gitlab/$DEFAULT_BRANCH" \
-            --allow-unrelated-histories \
-            --no-edit || true
-
-          git push origin "$DEFAULT_BRANCH"
-
-          git push origin --tags || true
+          git push --mirror \
+            https://${GH_PAT}@github.com/${GITHUB_USER}/linphone-sdk.git
 
           echo "✅ Main repository synced"
 
       ####################################################################
-      # CREATE REPOS (SERIAL, AVOID GITHUB ABUSE DETECTION)
+      # CREATE REPOS (SERIAL)
       ####################################################################
 
       - name: Create missing GitHub repos
@@ -401,6 +449,10 @@ jobs:
           [submodule "external/rnnoise"]
               path = external/rnnoise
               url = https://github.com/a791143125-arch/external-rnnoise.git
+
+          [submodule "external/cpp-httplib"]
+              path = external/cpp-httplib
+              url = https://github.com/a791143125-arch/external-cpp-httplib.git
           EOF
 
           git add .gitmodules
@@ -408,6 +460,10 @@ jobs:
           git commit -m "chore: update .gitmodules" || true
 
           git push origin || true
+
+      ####################################################################
+      # DONE
+      ####################################################################
 
       - name: Done
         run: |
